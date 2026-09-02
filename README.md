@@ -1,42 +1,90 @@
-![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
+![](../../workflows/gds/badge.svg)
+![](../../workflows/docs/badge.svg)
+![](../../workflows/test/badge.svg)
+![](../../workflows/fpga/badge.svg)
 
-# Tiny Tapeout Verilog Project Template
+# CTW-SPMS
 
-- [Read the documentation for project](docs/info.md)
+## Programmable Smart Power Management & Supervisor
 
-## What is Tiny Tapeout?
+CTW-SPMS is a 100% digital RTL power-management and supervision ASIC targeting:
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+- Tiny Tapeout TTSKY26c
+- SKY130A
+- 1x2 tile
+- Top module: tt_um_ctw_spms
+- Target clock: 10 MHz
 
-To learn more and get started, visit https://tinytapeout.com.
+## Frozen architecture
 
-## Set up your Verilog project
+POWER_SAMPLE
+-> FIR filter
+-> Power deviation
+-> Anomaly detector
+-> Power-level classifier
+-> 4-rail sequencer
+-> 3-load priority manager
+-> Fault manager
+-> Safe outputs
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+The complete architecture includes:
 
-The GitHub action will automatically build the ASIC files using [LibreLane](https://www.zerotoasiccourse.com/terminology/librelane/).
+- FIR power filtering
+- absolute power deviation
+- persistent anomaly detection
+- HIGH / MEDIUM / LOW / CRITICAL classification
+- four supervised power rails
+- Power-Good synchronization and filtering
+- startup timeout
+- three prioritized loads
+- load shedding
+- staged load restoration
+- hard-fault shutdown
+- fault latch
+- watchdog
+- automatic retry
+- retry lockout
+- last-fault register
+- fault counter
+- SPI Mode 0 configuration/status interface
 
-## Enable GitHub actions to build the results page
+## ASIC RTL policy
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+The RTL is developed specifically for SKY130 ASIC implementation:
 
-## Resources
+- deterministic reset behavior
+- safe outputs after reset
+- no functional initial blocks
+- no implicit nets
+- explicit arithmetic widths
+- explicit signed/unsigned handling
+- one primary clock domain
+- asynchronous inputs synchronized before control logic
+- no generated clocks unless absolutely necessary
+- no large general-purpose multipliers or dividers
+- synthesis and timing checked incrementally
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+## Development flow
 
-## What next?
+RTL regression
+-> Yosys synthesis
+-> LibreLane / OpenROAD
+-> STA
+-> Gate-level regression
+-> Tiny Tapeout precheck
+-> GDS
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
-  - Bluesky [@tinytapeout.com](https://bsky.app/profile/tinytapeout.com)
+## Current milestone
+
+Milestone 0: CI and safe-state baseline.
+
+The initial RTL deliberately holds all power rails and loads OFF.
+
+After this baseline passes GitHub Actions, functional blocks will be added
+incrementally and regression-tested after each major subsystem.
+
+See docs/info.md for additional project documentation.
+
+## License
+
+Apache-2.0 unless otherwise noted.
