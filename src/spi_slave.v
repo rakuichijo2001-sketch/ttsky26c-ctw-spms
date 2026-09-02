@@ -33,15 +33,15 @@ module spi_slave (
 
     reg        spi_sclk_sync_d;
     reg  [4:0] bit_count;
-    reg  [7:0] rx_shift;
-    reg  [7:0] tx_shift;
+    reg  [6:0] rx_shift;
+    reg  [6:0] tx_shift;
     reg  [6:0] frame_addr;
     reg        read_frame;
     reg        frame_done;
     reg        miso_reg;
 
     wire       sclk_rise;
-    wire [7:0] rx_shift_next;
+    wire [7:0] rx_byte_next;
 
     sync_2ff u_sync_spi_cs_n (
         .clk      (clk),
@@ -65,15 +65,15 @@ module spi_slave (
     );
 
     assign sclk_rise = spi_sclk_sync & ~spi_sclk_sync_d;
-    assign rx_shift_next = {rx_shift[6:0], spi_mosi_sync};
+    assign rx_byte_next = {rx_shift, spi_mosi_sync};
     assign spi_miso = miso_reg;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             spi_sclk_sync_d <= 1'b0;
             bit_count       <= 5'd0;
-            rx_shift        <= 8'd0;
-            tx_shift        <= 8'd0;
+            rx_shift        <= 7'd0;
+            tx_shift        <= 7'd0;
             frame_addr      <= 7'd0;
             read_frame      <= 1'b0;
             frame_done      <= 1'b0;
@@ -87,30 +87,30 @@ module spi_slave (
 
             if (spi_cs_n_sync) begin
                 bit_count  <= 5'd0;
-                rx_shift   <= 8'd0;
-                tx_shift   <= 8'd0;
+                rx_shift   <= 7'd0;
+                tx_shift   <= 7'd0;
                 frame_addr <= 7'd0;
                 read_frame <= 1'b0;
                 frame_done <= 1'b0;
                 miso_reg   <= 1'b0;
             end else if (!frame_done && sclk_rise) begin
-                rx_shift <= rx_shift_next;
+                rx_shift <= rx_byte_next[6:0];
 
                 if (bit_count == 5'd7) begin
                     /* First byte: R/W in bit7, address in bits6:0. */
-                    frame_addr <= rx_shift_next[6:0];
-                    read_frame <= rx_shift_next[7];
+                    frame_addr <= rx_byte_next[6:0];
+                    read_frame <= rx_byte_next[7];
 
-                    if (rx_shift_next[7]) begin
-                        if (rx_shift_next[6:0] == 7'h00) begin
-                            tx_shift <= read_data_00;
+                    if (rx_byte_next[7]) begin
+                        if (rx_byte_next[6:0] == 7'h00) begin
+                            tx_shift <= read_data_00[6:0];
                             miso_reg <= read_data_00[7];
                         end else begin
-                            tx_shift <= 8'h00;
+                            tx_shift <= 7'd0;
                             miso_reg <= 1'b0;
                         end
                     end else begin
-                        tx_shift <= 8'h00;
+                        tx_shift <= 7'd0;
                         miso_reg <= 1'b0;
                     end
                 end else if (bit_count >= 5'd8) begin
@@ -123,7 +123,7 @@ module spi_slave (
                          */
                         if (bit_count < 5'd15) begin
                             miso_reg <= tx_shift[6];
-                            tx_shift <= {tx_shift[6:0], 1'b0};
+                            tx_shift <= {tx_shift[5:0], 1'b0};
                         end else begin
                             miso_reg   <= 1'b0;
                             frame_done <= 1'b1;
@@ -131,7 +131,7 @@ module spi_slave (
                     end else if (bit_count == 5'd15) begin
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
-                        write_data <= rx_shift_next;
+                        write_data <= rx_byte_next;
                         if (frame_addr == 7'h00) begin
                             write_strobe <= 1'b1;
                         end
