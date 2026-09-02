@@ -7,7 +7,7 @@ TOPLEVEL_LANG ?= verilog
 
 SRC_DIR = $(PWD)/../src
 
-PROJECT_SOURCES = sync_2ff.v timebase_tick.v tt_um_ctw_spms.v
+PROJECT_SOURCES = sync_2ff.v timebase_tick.v spi_slave.v tt_um_ctw_spms.v
 
 ifneq ($(GATES),yes)
 
