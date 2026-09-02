@@ -501,7 +501,7 @@ async def test_watchdog_heartbeat_and_timeout(dut):
 
 
 @cocotb.test()
-async def test_auto_retry_success_failure_exhaustion_and_lock(dut):
+async def test_auto_retry_success_exhaustion_and_lock(dut):
     """Covers retry success, failed restart, exhaustion and FAULT_LOCK."""
     await start_clock(dut)
     await reset_dut(dut)
