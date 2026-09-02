@@ -17,6 +17,7 @@ project:
   source_files:
     - "sync_2ff.v"
     - "timebase_tick.v"
+    - "spi_slave.v"
     - "tt_um_ctw_spms.v"
 
 # Pinout

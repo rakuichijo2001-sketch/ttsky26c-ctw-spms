@@ -2,7 +2,7 @@
  * CTW-SPMS
  * Programmable Smart Power Management & Supervisor
  *
- * Milestone 0.1: real clocked ASIC foundation
+ * Milestone 1A: SPI ingress + POWER_SAMPLE register
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -33,12 +33,14 @@ module tt_um_ctw_spms (
 
     wire timer_tick_ce;
     wire hard_fault_event;
-    wire pg_all_good;
 
-    reg  fault_latched;
-    reg  watchdog_sync_d;
-    reg  watchdog_seen;
-    reg  foundation_ready;
+    wire       spi_miso;
+    wire [6:0] spi_write_addr;
+    wire [7:0] spi_write_data;
+    wire       power_sample_wr_strobe;
+
+    reg        fault_latched;
+    reg  [7:0] power_sample;
 
     sync_2ff u_sync_pg1 (
         .clk      (clk),
@@ -109,12 +111,24 @@ module tt_um_ctw_spms (
         .timer_tick_ce (timer_tick_ce)
     );
 
+    spi_slave u_spi_slave (
+        .clk             (clk),
+        .rst_n           (rst_n),
+        .spi_cs_n_async  (uio_in[1]),
+        .spi_sclk_async  (uio_in[2]),
+        .spi_mosi_async  (uio_in[3]),
+        .spi_miso        (spi_miso),
+        .read_data_00    (power_sample),
+        .write_addr      (spi_write_addr),
+        .write_data      (spi_write_data),
+        .write_strobe    (power_sample_wr_strobe)
+    );
+
     assign hard_fault_event = overcurrent_sync | overtemp_sync;
-    assign pg_all_good = pg1_sync & pg2_sync & pg3_sync & pg4_sync;
 
     /*
-     * Hard-fault latch. At Milestone 0.1 only reset can clear it.
-     * FORCE_SHUTDOWN_EXT deliberately does not set this latch.
+     * Preserve the Milestone 0.1 fail-safe latch. Full fault policy and
+     * CLEAR_FAULT behavior arrive in the dedicated fault milestone.
      */
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -124,57 +138,30 @@ module tt_um_ctw_spms (
         end
     end
 
-    /*
-     * Retain whether a synchronized watchdog transition has ever been
-     * observed since reset. Full watchdog timeout supervision is deferred.
-     */
+    /* Minimal Milestone-1A register support: address 0x00 only. */
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            watchdog_sync_d <= 1'b0;
-            watchdog_seen   <= 1'b0;
-        end else begin
-            watchdog_sync_d <= watchdog_sync;
-            if (watchdog_sync != watchdog_sync_d) begin
-                watchdog_seen <= 1'b1;
-            end
+            power_sample <= 8'h00;
+        end else if (power_sample_wr_strobe && (spi_write_addr == 7'h00)) begin
+            power_sample <= spi_write_data;
         end
     end
 
-    /*
-     * Future-compatible foundation readiness state. It gives synchronized
-     * PG, watchdog, external shutdown, project enable and the 10 kHz
-     * clock-enable timebase real functional use without enabling any rail
-     * or load. Unsafe state clears readiness immediately on a core clock;
-     * qualification into ready occurs only on timer_tick_ce.
-     */
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            foundation_ready <= 1'b0;
-        end else if (!ena_sync || force_shutdown_ext_sync ||
-                     hard_fault_event || fault_latched || !pg_all_good) begin
-            foundation_ready <= 1'b0;
-        end else if (timer_tick_ce) begin
-            foundation_ready <= watchdog_seen;
-        end
-    end
-
-    /*
-     * RAIL1..4 and LOAD1..3 remain OFF for Milestone 0.1.
-     * FAULT is the only dedicated output with active functionality.
-     */
+    /* Rails and loads remain OFF until their later milestones. */
     assign uo_out = {fault_latched, 7'b000_0000};
 
-    /*
-     * uio[0] is reserved for SPI_MISO. SPI is not implemented yet, so all
-     * bidirectional pins remain inputs (uio_oe == 0). The internal MISO data
-     * path is deterministic and exposes foundation readiness; while not ready,
-     * the one-cycle timer tick is visible for foundation verification.
-     */
-    assign uio_out = {7'b000_0000, (foundation_ready | timer_tick_ce)};
-    assign uio_oe  = 8'b0000_0000;
+    /* uio[0] is the only driven bidirectional pin: SPI_MISO. */
+    assign uio_out = {7'b000_0000, spi_miso};
+    assign uio_oe  = 8'b0000_0001;
 
-    /* SPI inputs are reserved but intentionally unused in Milestone 0.1. */
-    wire _unused = &{uio_in, 1'b0};
+    /*
+     * These synchronized foundation signals are intentionally retained in
+     * source for upcoming milestones but do not affect outputs in 1A.
+     */
+    wire _unused = &{1'b0,
+                     pg1_sync, pg2_sync, pg3_sync, pg4_sync,
+                     watchdog_sync, force_shutdown_ext_sync, ena_sync,
+                     timer_tick_ce, uio_in[7:4], uio_in[0]};
 
 endmodule
 
