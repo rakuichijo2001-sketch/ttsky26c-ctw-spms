@@ -13,8 +13,10 @@ project:
   # Tiny Tapeout top module
   top_module: "tt_um_ctw_spms"
 
-  # RTL source files
+  # RTL source files, dependency order
   source_files:
+    - "sync_2ff.v"
+    - "timebase_tick.v"
     - "tt_um_ctw_spms.v"
 
 # Pinout
@@ -27,7 +29,7 @@ pinout:
   ui[4]: "OVERCURRENT"
   ui[5]: "OVERTEMP"
   ui[6]: "WATCHDOG_IN"
-  ui[7]: "FORCE_SHUTDOWN"
+  ui[7]: "FORCE_SHUTDOWN_EXT"
 
   # Dedicated outputs
   uo[0]: "RAIL1_EN"
