@@ -5,7 +5,9 @@
 
 `default_nettype none
 
-module sync_2ff (
+module sync_2ff #(
+    parameter RESET_VALUE = 1'b0
+) (
     input  wire clk,
     input  wire rst_n,
     input  wire async_in,
@@ -17,8 +19,8 @@ module sync_2ff (
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            sync_ff1 <= 1'b0;
-            sync_ff2 <= 1'b0;
+            sync_ff1 <= RESET_VALUE;
+            sync_ff2 <= RESET_VALUE;
         end else begin
             sync_ff1 <= async_in;
             sync_ff2 <= sync_ff1;

@@ -1,105 +1,33 @@
 # CTW-SPMS — Programmable Smart Power Management & Supervisor
 
-CTW-SPMS is an all-digital power-management and supervision controller
-implemented in synthesizable RTL for Tiny Tapeout TTSKY26c / SKY130.
+CTW-SPMS is a 100% digital SKY130 power supervisor for Tiny Tapeout TTSKY26c.
+It filters an externally digitized power metric, classifies available power,
+sequences four supervised rails, controls three priority loads, and shuts every
+output down through an explicit fail-safe override after a critical fault.
 
-## Current implementation: Milestone 1A
+## User interface
 
-The 10 MHz Tiny Tapeout `clk` remains the only clock domain. `timebase_tick`
-emits a one-core-cycle clock enable at 10 kHz, so one timer tick represents
-100 us. It does not create a divided clock.
+The fixed Tiny Tapeout pins provide PG1..PG4, OVERCURRENT, OVERTEMP,
+WATCHDOG_IN, external force shutdown, four rail enables, three load enables,
+FAULT, and a four-wire SPI interface. Only `uio[0]` is driven, as SPI_MISO;
+`uio_oe` is always `8'h01`.
 
-All asynchronous project status/control inputs remain behind 2-flip-flop
-synchronizers. Synchronized OVERCURRENT and OVERTEMP set the existing fail-safe
-FAULT latch; reset is the only clear mechanism at this stage.
+SPI is Mode 0, MSB first, at up to 2 MHz. Each frame contains a read/write plus
+7-bit address byte and one data byte. SPI is synchronized into the 10 MHz core
+domain; SPI_SCLK is not used as an RTL clock.
 
-Milestone 1A adds a core-clocked SPI slave. `SPI_CS_N`, `SPI_SCLK`, and `SPI_MOSI`
-are synchronized into the 10 MHz clock domain, and SCLK edges are detected as
-data events rather than used as an RTL clock.
+See the repository README for architecture, sequencing, safety and retry
+semantics. See `docs/register-map.md` for the authoritative address table,
+defaults, status flags, fault codes, state codes, and zero-value behavior.
 
-## SPI ingress
+## Safety summary
 
-SPI mode and framing:
+Reset, a hard fault, force shutdown, or inactive synchronized Tiny Tapeout
+`ena` makes all final rail/load enables zero. FAULT_LOCK additionally guarantees
+FAULT=1. All asynchronous single-bit inputs pass through explicit 2-flip-flop
+synchronizers. PG assertion requires consecutive stable samples; a synchronized
+PG deassertion removes GOOD immediately.
 
-- Mode 0 (CPOL=0, CPHA=0)
-- MSB first
-- maximum supported SCLK: 2 MHz
-- CS_N LOW frames a transaction
-- exactly 16 SCLK cycles form a complete transaction
-- CS_N HIGH aborts an incomplete frame
-- clocks beyond a completed frame are ignored until CS_N returns HIGH
-
-First byte:
-
-- bit7 = 0 WRITE, 1 READ
-- bits6:0 = register address
-
-Second byte:
-
-- WRITE: data from MOSI
-- READ: data on MISO
-
-Milestone 1A implements address `0x00 POWER_SAMPLE`. A complete WRITE updates
-POWER_SAMPLE atomically and generates a write strobe lasting exactly one core
-clock. A READ returns the current POWER_SAMPLE. Unsupported reads return zero;
-unsupported writes do not modify POWER_SAMPLE.
-
-## Safety behavior
-
-After reset:
-
-- RAIL1_EN..RAIL4_EN = 0
-- LOAD1_EN..LOAD3_EN = 0
-- FAULT = 0
-- POWER_SAMPLE = 0
-
-After synchronized OVERCURRENT or OVERTEMP, FAULT latches HIGH while every rail
-and load remains OFF.
-
-## Pin mapping
-
-### Dedicated inputs
-
-| Pin | Function |
-|---|---|
-| ui[0] | PG1 |
-| ui[1] | PG2 |
-| ui[2] | PG3 |
-| ui[3] | PG4 |
-| ui[4] | OVERCURRENT |
-| ui[5] | OVERTEMP |
-| ui[6] | WATCHDOG_IN |
-| ui[7] | FORCE_SHUTDOWN_EXT |
-
-### Dedicated outputs
-
-| Pin | Function |
-|---|---|
-| uo[0] | RAIL1_EN (OFF in M1A) |
-| uo[1] | RAIL2_EN (OFF in M1A) |
-| uo[2] | RAIL3_EN (OFF in M1A) |
-| uo[3] | RAIL4_EN (OFF in M1A) |
-| uo[4] | LOAD1_EN (OFF in M1A) |
-| uo[5] | LOAD2_EN (OFF in M1A) |
-| uo[6] | LOAD3_EN (OFF in M1A) |
-| uo[7] | FAULT |
-
-### Bidirectional interface
-
-| Pin | Function |
-|---|---|
-| uio[0] | SPI_MISO output |
-| uio[1] | SPI_CS_N input |
-| uio[2] | SPI_SCLK input |
-| uio[3] | SPI_MOSI input |
-| uio[4..7] | unused |
-
-Only `uio[0]` is driven, so `uio_oe = 8'h01`.
-
-## Verification
-
-The self-checking Cocotb regression covers reset/safe outputs, hard-fault CDC
-and latching, Mode-0 SPI at the full 2 MHz supported SCLK, POWER_SAMPLE read and
-write, one-core-cycle write strobe at RTL, incomplete-frame abort, deterministic
-unsupported reads, unsupported-write isolation, extra-clock ignore behavior,
-and gate-level compatibility.
+The design contains no generated/gated clock, functional initial block,
+delay statement, multiplier, variable divider, inferred memory, CPU, analog
+block, UART, I2C, PMBus, or PWM.

@@ -7,7 +7,10 @@ TOPLEVEL_LANG ?= verilog
 
 SRC_DIR = $(PWD)/../src
 
-PROJECT_SOURCES = sync_2ff.v timebase_tick.v spi_slave.v tt_um_ctw_spms.v
+PROJECT_SOURCES = sync_2ff.v timebase_tick.v spi_slave.v register_bank.v \
+	power_fir.v power_deviation.v anomaly_detector.v power_level_classifier.v \
+	pg_filter.v rail_sequencer.v load_priority_manager.v watchdog.v \
+	fault_manager.v fault_controller.v output_safety.v tt_um_ctw_spms.v
 
 ifneq ($(GATES),yes)
 

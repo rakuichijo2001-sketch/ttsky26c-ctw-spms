@@ -2,17 +2,19 @@
 
 The Cocotb regression is shared by RTL and gate-level simulation.
 
-Current Milestone 1A coverage includes:
+Coverage includes:
 
-- deterministic reset and safe rail/load outputs
-- synchronized OVERCURRENT / OVERTEMP fault latching
-- SPI Mode 0 at the specified 2 MHz maximum SCLK
-- `0x00 POWER_SAMPLE` write and read
-- one-core-cycle POWER_SAMPLE write strobe in RTL
-- incomplete-frame abort on CS_N HIGH
-- unsupported write isolation and deterministic zero reads
-- extra-clock ignore behavior after a complete frame
-- deterministic `uio_oe` with only SPI_MISO driven
+- reset and active reset, including deterministic outputs and `uio_oe`
+- complete SPI register/status access, incomplete aborts, extra clocks,
+  unsupported addresses, back-to-back frames, and configuration effects
+- FIR, deviation, classifier, anomaly persistence, and transient rejection
+- PG synchronization, stability qualification, glitches, and zero count
+- normal startup/reverse shutdown and every rail timeout/RUN PG loss
+- HIGH/MEDIUM/LOW/CRITICAL load policy and staged restoration
+- simultaneous-fault priority, OC/OT, latch and safe clear semantics
+- watchdog heartbeat/timeout and retry success/failure/exhaustion/FAULT_LOCK
+- zero boundaries, diagnostic saturation, illegal-state recovery, and safety
+  invariants
 
 Run RTL simulation with:
 

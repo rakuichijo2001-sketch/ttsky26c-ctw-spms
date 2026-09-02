@@ -20,7 +20,8 @@ module spi_slave (
     input  wire       spi_mosi_async,
     output wire       spi_miso,
 
-    input  wire [7:0] read_data_00,
+    output reg  [6:0] read_addr,
+    input  wire [7:0] read_data,
 
     output reg  [6:0] write_addr,
     output reg  [7:0] write_data,
@@ -38,12 +39,15 @@ module spi_slave (
     reg  [6:0] frame_addr;
     reg        read_frame;
     reg        frame_done;
+    reg        read_load_pending;
     reg        miso_reg;
 
     wire       sclk_rise;
     wire [7:0] rx_byte_next;
 
-    sync_2ff u_sync_spi_cs_n (
+    sync_2ff #(
+        .RESET_VALUE (1'b1)
+    ) u_sync_spi_cs_n (
         .clk      (clk),
         .rst_n    (rst_n),
         .async_in (spi_cs_n_async),
@@ -77,13 +81,21 @@ module spi_slave (
             frame_addr      <= 7'd0;
             read_frame      <= 1'b0;
             frame_done      <= 1'b0;
+            read_load_pending <= 1'b0;
             miso_reg        <= 1'b0;
+            read_addr       <= 7'd0;
             write_addr      <= 7'd0;
             write_data      <= 8'd0;
             write_strobe    <= 1'b0;
         end else begin
             spi_sclk_sync_d <= spi_sclk_sync;
             write_strobe    <= 1'b0;
+
+            if (read_load_pending) begin
+                tx_shift          <= read_data[6:0];
+                miso_reg          <= read_data[7];
+                read_load_pending <= 1'b0;
+            end
 
             if (spi_cs_n_sync) begin
                 bit_count  <= 5'd0;
@@ -92,6 +104,7 @@ module spi_slave (
                 frame_addr <= 7'd0;
                 read_frame <= 1'b0;
                 frame_done <= 1'b0;
+                read_load_pending <= 1'b0;
                 miso_reg   <= 1'b0;
             end else if (!frame_done && sclk_rise) begin
                 rx_shift <= rx_byte_next[6:0];
@@ -102,13 +115,8 @@ module spi_slave (
                     read_frame <= rx_byte_next[7];
 
                     if (rx_byte_next[7]) begin
-                        if (rx_byte_next[6:0] == 7'h00) begin
-                            tx_shift <= read_data_00[6:0];
-                            miso_reg <= read_data_00[7];
-                        end else begin
-                            tx_shift <= 7'd0;
-                            miso_reg <= 1'b0;
-                        end
+                        read_addr         <= rx_byte_next[6:0];
+                        read_load_pending <= 1'b1;
                     end else begin
                         tx_shift <= 7'd0;
                         miso_reg <= 1'b0;
@@ -132,9 +140,7 @@ module spi_slave (
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
                         write_data <= rx_byte_next;
-                        if (frame_addr == 7'h00) begin
-                            write_strobe <= 1'b1;
-                        end
+                        write_strobe <= 1'b1;
                         frame_done <= 1'b1;
                         miso_reg   <= 1'b0;
                     end

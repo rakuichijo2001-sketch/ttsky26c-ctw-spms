@@ -5,98 +5,210 @@
 
 # CTW-SPMS
 
-## Programmable Smart Power Management & Supervisor
+CTW-SPMS is a programmable, all-digital Smart Power Management and Supervisor
+for Tiny Tapeout TTSKY26c in a SKY130 1x2 tile. The design uses the 10 MHz
+Tiny Tapeout clock as its only RTL clock domain.
 
-CTW-SPMS is a 100% digital RTL power-management and supervision ASIC targeting:
+The chip accepts digital samples and status signals from external ADC,
+comparator, and supervisor circuitry. It contains no analog measurement block.
 
-- Tiny Tapeout TTSKY26c
-- SKY130A
-- 1x2 tile
-- Top module: `tt_um_ctw_spms`
-- Target clock: 10 MHz
+## Architecture
 
-## Frozen architecture
+```mermaid
+flowchart TD
+    SPI["SPI register bank"] --> FIR["FIR and deviation"]
+    FIR --> CLASS["Anomaly and power level"]
+    PG["Synchronized, filtered PG1..4"] --> SEQ["Four-rail sequencer"]
+    CLASS --> LOAD["Three-load priority manager"]
+    CLASS --> FAULT["Fault, watchdog, retry and lock"]
+    SEQ --> FAULT
+    FAULT --> SAFE["Fail-safe output override"]
+    SEQ --> SAFE
+    LOAD --> SAFE
+```
 
-POWER_SAMPLE -> FIR filter -> Power deviation -> Anomaly detector -> Power-level
-classifier -> 4-rail sequencer -> 3-load priority manager -> Fault manager ->
-Safe outputs.
+Implemented frozen features:
 
-The frozen architecture is implemented incrementally so every subsystem can be
-regression-tested and hardened before integration.
+- multiplier-free four-tap FIR, absolute deviation, programmable warning and
+  severe-anomaly persistence
+- programmable HIGH, MEDIUM, LOW, and CRITICAL power classifier
+- explicit 2-flip-flop synchronization and assertion filtering for PG1..PG4
+- four-rail ordered startup, PG wait states, startup timeout, RUN PG-loss
+  detection, and ordered reverse shutdown
+- three-load prompt shedding and one-at-a-time restoration
+- deterministic fault priority, hard shutdown, latched diagnostics, watchdog,
+  automatic retry, retry exhaustion, and FAULT_LOCK
+- SPI Mode 0 programmable register bank and readable operating status
+- final combinational safety override that no sequencer or load decision can
+  bypass
 
-## Current implementation — Milestone 1A
+## Tiny Tapeout pin map
 
-Milestone 1A adds the real SPI ingress and the first programmable register while
-preserving the safe clocked foundation:
+| Pin | Direction | Function |
+|---|---|---|
+| `ui[0]` | input | PG1 |
+| `ui[1]` | input | PG2 |
+| `ui[2]` | input | PG3 |
+| `ui[3]` | input | PG4 |
+| `ui[4]` | input | OVERCURRENT |
+| `ui[5]` | input | OVERTEMP |
+| `ui[6]` | input | WATCHDOG_IN toggle/edge heartbeat |
+| `ui[7]` | input | FORCE_SHUTDOWN_EXT |
+| `uo[0]` | output | RAIL1_EN |
+| `uo[1]` | output | RAIL2_EN |
+| `uo[2]` | output | RAIL3_EN |
+| `uo[3]` | output | RAIL4_EN |
+| `uo[4]` | output | LOAD1_EN, highest priority |
+| `uo[5]` | output | LOAD2_EN |
+| `uo[6]` | output | LOAD3_EN, lowest priority |
+| `uo[7]` | output | latched FAULT |
+| `uio[0]` | output | SPI_MISO |
+| `uio[1]` | input | SPI_CS_N |
+| `uio[2]` | input | SPI_SCLK |
+| `uio[3]` | input | SPI_MOSI |
+| `uio[7:4]` | input | unused |
 
-- one 10 MHz core clock domain
-- shared divide-by-1000 clock-enable timebase (`timer_tick_ce`) at 10 kHz / 100 us
-- reusable two-flip-flop synchronizers
-- synchronized PG1..PG4, OVERCURRENT, OVERTEMP, WATCHDOG_IN,
-  FORCE_SHUTDOWN_EXT and `ena`
-- reset-only hard-fault latch for synchronized OVERCURRENT or OVERTEMP
-- SPI Mode 0, MSB first, maximum supported SCLK 2 MHz
-- synchronized SPI_CS_N, SPI_SCLK and SPI_MOSI; no SCLK-derived RTL clock
-- exactly 16 SCLK cycles per accepted frame
-- `0x00 POWER_SAMPLE` read/write support
-- complete write updates POWER_SAMPLE atomically with a one-core-cycle strobe
-- incomplete frames are aborted by CS_N HIGH
-- extra clocks after a complete frame are ignored until CS_N returns HIGH
+`uio_oe` is always `8'h01`; unused outputs are always zero. Tiny Tapeout `ena`
+is synchronized and acts as a final system/output permission. Configuration and
+SPI status remain clocked, but rails and loads are forced OFF while synchronized
+`ena` is LOW.
 
-No generated clock or RTL clock gating is used.
+## SPI interface
 
-## SPI protocol
+- Mode 0: CPOL=0, CPHA=0
+- MSB first
+- maximum SCLK: 2 MHz with the 10 MHz project clock
+- one transaction is exactly 16 SCLK rising edges under CS_N LOW
+- byte 0: bit 7 is READ=1/WRITE=0; bits 6:0 are the address
+- byte 1: write data on MOSI or read data on MISO
+- CS_N HIGH aborts an incomplete frame
+- clocks after a complete frame are ignored until CS_N returns HIGH
+- writes commit atomically with a one-core-clock strobe
 
-The first byte contains the operation and 7-bit register address:
+SPI_SCLK is not an RTL clock. CS_N, SCLK, and MOSI pass through explicit 2-FF
+synchronizers, and protocol edge detection runs entirely on `clk`. Keep CS_N
+HIGH for at least three project clocks between frames.
 
-- bit7 = 0: WRITE
-- bit7 = 1: READ
-- bits6:0 = address
+The single authoritative address/default table is
+[docs/register-map.md](docs/register-map.md).
 
-The second byte is write data or read data. In Milestone 1A only address `0x00`
-is implemented. Unsupported reads return zero and unsupported writes do not
-modify POWER_SAMPLE.
+## Signal processing
 
-UIO mapping:
+The unsigned FIR is:
 
-- `uio[0]`: SPI_MISO (output)
-- `uio[1]`: SPI_CS_N (input)
-- `uio[2]`: SPI_SCLK (input)
-- `uio[3]`: SPI_MOSI (input)
-- `uio[4..7]`: unused
+```text
+y[n] = (x[n] + 2*x[n-1] + 2*x[n-2] + x[n-3]) / 4
+```
 
-`uio_oe = 8'h01`, so only MISO is driven.
+The accumulator is explicitly 11 bits. Division truncates the two fractional
+bits, and results above 255 saturate to `8'hFF`. The deviation block performs a
+safe unsigned absolute difference between the filtered sample and
+`POWER_NOMINAL`.
 
-## Safety behavior
+Anomaly counters require consecutive samples and saturate at 255. A configured
+persistence of zero or one qualifies on the first matching sample. Anomaly
+status is observable while disabled, but a severe anomaly enters the fault path
+only while `SYSTEM_ENABLE` and synchronized `ena` request operation.
 
-RAIL1_EN..RAIL4_EN and LOAD1_EN..LOAD3_EN remain OFF in Milestone 1A.
-`uo_out[7]` is FAULT and latches HIGH after synchronized OVERCURRENT or OVERTEMP.
-Removing the source does not clear FAULT; reset remains the only clear mechanism
-until the dedicated fault-management milestone.
+## Rail and PG behavior
 
-## ASIC RTL policy
+`PG_STABLE_COUNT` and `STARTUP_TIMEOUT` count 10 MHz core clocks.
+`SEQUENCE_DELAY` also counts core clocks and is reused as the load-restoration
+delay. Zero delay advances on the next state clock. A timeout value of zero
+faults on the first WAIT_PG clock if PG is not already qualified.
 
-- deterministic active-low reset
-- no functional `initial` blocks in `src/`
-- no synthesizable `#` delays
-- no implicit nets
-- explicit widths and single primary clock domain
-- asynchronous external controls synchronized before use
-- clock-enable timing instead of divided/generated clocks
-- no inferred latch or FPGA primitive
-- no meaningless filler logic
+PG assertion requires the programmed number of consecutive synchronized HIGH
+samples. Zero and one both accept the first synchronized HIGH. A synchronized
+LOW immediately removes qualified PG. In RUN, PG-loss priority is PG1, PG2,
+PG3, then PG4.
+
+Normal startup is RAIL1 -> RAIL2 -> RAIL3 -> RAIL4 -> RUN. Normal removal of
+`SYSTEM_ENABLE` powers down RAIL4 -> RAIL3 -> RAIL2 -> RAIL1. A hard fault,
+force shutdown, reset, or inactive `ena` bypasses ordinary timing and forces all
+final rail/load outputs LOW.
+
+## Load policy
+
+| Power level | LOAD1 | LOAD2 | LOAD3 |
+|---|---:|---:|---:|
+| HIGH | ON | ON | ON |
+| MEDIUM | ON | ON | OFF |
+| LOW | ON | OFF | OFF |
+| CRITICAL | OFF | OFF | OFF |
+
+Shedding applies at the next core clock. Recovery restores one missing load at
+a time in priority order after each `SEQUENCE_DELAY`; loads never turn on merely
+because reset was released and are permitted only in RUN.
+
+## Fault and retry policy
+
+Simultaneous fault priority is:
+
+1. OVERCURRENT
+2. OVERTEMP
+3. qualified POWER_ANOMALY
+4. WATCHDOG_TIMEOUT
+5. rail sequencer fault; RUN PG-loss priority is PG1 through PG4
+
+Every accepted event increments the saturating `FAULT_COUNT` and updates
+`LAST_FAULT`. Startup timeout records its rail separately. A critical event
+immediately activates the final safety override, then latches FAULT.
+
+`CLEAR_FAULT` is a self-clearing command pulse. It is ignored while an active
+level fault remains. It does not erase historical `LAST_FAULT` or `FAULT_COUNT`.
+
+`RETRY_DELAY` and `WATCHDOG_TIMEOUT` use the shared 10 kHz clock-enable tick, so
+one count is 100 us. There is no generated clock. After a fault, outputs remain
+safe for `RETRY_DELAY`, then startup may retry if the source is absent. A source
+that remains active consumes bounded retry windows without enabling outputs.
+After `MAX_RETRY` attempts, the controller enters FAULT_LOCK, records
+RETRY_EXHAUSTED, and stays safe until a valid clear. `MAX_RETRY=0` locks
+immediately. A successful return to RUN ends the retry episode; the displayed
+retry count is retained for diagnostics until clear or the next independent
+episode.
+
+The watchdog is active only when its control bit, the system request, and the
+fault policy permit operation. Either heartbeat edge/toggle resets its timer.
+
+## Reset and illegal-state behavior
+
+Active-low reset deterministically produces:
+
+```text
+RAIL_EN = 0000
+LOAD_EN = 000
+FAULT   = 0
+uio_oe  = 00000001
+```
+
+Safety-critical FSM state and counters have explicit reset. An illegal rail FSM
+encoding recovers to OFF with all sequencer rails disabled; an illegal fault
+controller encoding recovers to FAULT_LOCK.
 
 ## Verification
 
-The Cocotb regression covers reset safety, hard-fault synchronization/latching,
-2 MHz Mode-0 SPI write/read, POWER_SAMPLE reset behavior, exact one-cycle write
-strobe at RTL, incomplete-frame abort, unsupported address behavior, extra-clock
-ignore behavior, deterministic MISO direction, and permanently disabled rails and
-loads.
+Run the deterministic RTL regression with:
 
-FIR, anomaly/classifier, rail sequencing, load management, watchdog timeout,
-auto-retry and full diagnostics remain staged for later milestones.
+```sh
+cd test
+make clean
+make
+```
 
-## License
+The regression covers all required scenario classes, including all four startup
+timeouts and RUN PG losses, PG glitches, staged loads, anomaly persistence,
+single transient rejection, simultaneous-fault priority, watchdog, retry
+success/failure/exhaustion, zero boundaries, saturation, active reset, illegal
+state recovery, SPI framing, configuration effects, and output invariants.
 
-Apache-2.0 unless otherwise noted.
+CI additionally runs Tiny Tapeout GDS hardening, precheck, and gate-level tests.
+
+## Attribution and license
+
+RTL in this repository is a clean CTW-SPMS-native implementation licensed under
+Apache-2.0. Architectural concepts were informed by the Tiny Tapeout
+`tt_um_signal_detector` and `tt_um_load_priority_controller` projects; no source
+code was copied from them.
+
+The frozen scope deliberately excludes UART, I2C, PMBus, PWM, dead-time and PI
+controllers, on-chip ADC, CPU/RISC-V, AI/BNN, and BIST.
