@@ -12,7 +12,8 @@ Coverage includes:
   rejection
 - explicit two-flip-flop PG synchronization, symmetric 100 us stability
   qualification, glitches, and zero count
-- normal startup/reverse shutdown and every rail timeout/RUN PG loss
+- normal startup/reverse shutdown, external force shutdown, Tiny Tapeout
+  `ena` safety gating, and every rail timeout/RUN PG loss
 - HIGH/MEDIUM/LOW/CRITICAL load policy and staged restoration
 - frozen simultaneous-fault priority, OC/OT, latch and safe clear semantics
 - RUN-only watchdog heartbeat/timeout and retry

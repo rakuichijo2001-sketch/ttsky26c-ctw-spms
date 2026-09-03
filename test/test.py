@@ -420,6 +420,20 @@ async def test_load_policy_restore_shutdown_force_and_active_reset(dut):
     await write_reg(dut, REG_CONTROL, CTRL_SYSTEM_ENABLE)
     await wait_for_mask(dut, RAIL_MASK, RAIL_MASK, 2 * TICK_CYCLES)
 
+    dut.ui_in.value = 0x8F
+    await wait_for_mask(
+        dut, RAIL_MASK | LOAD_MASK | FAULT_BIT, 0, 10
+    )
+    dut.ui_in.value = 0x0F
+    await wait_for_mask(dut, RAIL_MASK, RAIL_MASK, 2 * TICK_CYCLES)
+
+    dut.ena.value = 0
+    await wait_for_mask(
+        dut, RAIL_MASK | LOAD_MASK | FAULT_BIT, 0, 10
+    )
+    dut.ena.value = 1
+    await wait_for_mask(dut, RAIL_MASK, RAIL_MASK, 2 * TICK_CYCLES)
+
     await write_reg(dut, REG_SEQUENCE_DELAY, 1)
     await write_reg(dut, REG_CONTROL, 0)
     assert (int(dut.uo_out.value) & LOAD_MASK) == 0
