@@ -18,9 +18,18 @@
   "//": "Limit CTS leaf clusters to the signoff max-fanout constraint.",
   "CTS_SINK_CLUSTERING_SIZE": 8,
 
-  "//": "Over-repair nominal placement slew/cap to cover routed slow-corner derating.",
-  "DESIGN_REPAIR_MAX_SLEW_PCT": 65,
-  "DESIGN_REPAIR_MAX_CAP_PCT": 40,
+  "//": "Keep data/control fanout trees bounded as well as the CTS leaves.",
+  "MAX_FANOUT_CONSTRAINT": 8,
+
+  "//": "Do not use drive-1 buffers for reset/control fanout trees.",
+  "EXTRA_EXCLUDED_CELLS": [
+    "sky130_fd_sc_hd__buf_1",
+    "sky130_fd_sc_hd__clkdlybuf4s25_1"
+  ],
+
+  "//": "Repair placement slew/cap with the LibreLane-recommended 30% margin.",
+  "DESIGN_REPAIR_MAX_SLEW_PCT": 30,
+  "DESIGN_REPAIR_MAX_CAP_PCT": 30,
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
