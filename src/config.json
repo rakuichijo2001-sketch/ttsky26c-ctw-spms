@@ -16,10 +16,10 @@
   "PL_TARGET_DENSITY_PCT": 80,
 
   "//": "Limit CTS leaf clusters to the signoff max-fanout constraint.",
-  "CTS_SINK_CLUSTERING_SIZE": 6,
+  "CTS_SINK_CLUSTERING_SIZE": 8,
 
   "//": "Keep data/control fanout trees bounded as well as the CTS leaves.",
-  "MAX_FANOUT_CONSTRAINT": 6,
+  "MAX_FANOUT_CONSTRAINT": 8,
 
   "//": "Do not use drive-1 buffers for reset/control fanout trees.",
   "EXTRA_EXCLUDED_CELLS": [
