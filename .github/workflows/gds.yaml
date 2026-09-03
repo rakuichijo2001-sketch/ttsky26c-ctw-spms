@@ -80,3 +80,29 @@ jobs:
       id-token: write   # to verify the deployment originates from an appropriate source
     steps:
       - uses: TinyTapeout/tt-gds-action/viewer@ttsky26c
+
+  freeze:
+    name: freeze v1.0.0-ttsky26c
+    needs: [gds, precheck, gl_test, viewer]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout signed-off commit
+        uses: actions/checkout@v6
+
+      - name: Create immutable release tag if absent
+        env:
+          RELEASE_TAG: v1.0.0-ttsky26c
+        run: |
+          git fetch --tags
+          if git rev-parse --quiet --verify "refs/tags/${RELEASE_TAG}"; then
+            echo "${RELEASE_TAG} already exists and will not be moved"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "${RELEASE_TAG}" "${GITHUB_SHA}" \
+            --message "CTW-SPMS TTSKY26c signed-off release"
+          git push origin "refs/tags/${RELEASE_TAG}"
