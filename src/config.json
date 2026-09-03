@@ -27,7 +27,8 @@
     "sky130_fd_sc_hd__clkbuf_1",
     "sky130_fd_sc_hd__clkdlybuf*_1",
     "sky130_fd_sc_hd__dlygate*_1",
-    "sky130_fd_sc_hd__dlymetal*_1"
+    "sky130_fd_sc_hd__dlymetal*_1",
+    "sky130_fd_sc_hd__nor2_2"
   ],
 
   "//": "Over-repair nominal placement slew to cover routed slow-corner derating.",
