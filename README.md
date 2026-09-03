@@ -191,8 +191,9 @@ uio_oe  = 00000001
 ```
 
 Safety-critical FSM state and counters have explicit reset. An illegal rail FSM
-encoding recovers to OFF with all sequencer rails disabled; an illegal fault
-controller encoding recovers to FAULT_LOCK.
+encoding recovers to OFF with all sequencer rails disabled. The two-bit fault
+controller uses all four binary encodings; its lock state stays safe until a
+valid clear.
 
 ## Verification
 
@@ -206,11 +207,14 @@ make
 
 The regression covers all required scenario classes, including all four startup
 timeouts and RUN PG losses, PG glitches, staged loads, anomaly persistence,
-single transient rejection, simultaneous-fault priority, watchdog, retry
+single transient rejection, simultaneous OT-over-OC priority, watchdog, retry
 success/failure/exhaustion, zero boundaries, saturation, active reset, illegal
-state recovery, SPI framing, configuration effects, and output invariants.
+rail-state recovery, SPI framing, configuration effects, and output invariants.
 
-CI additionally runs Tiny Tapeout GDS hardening, precheck, and gate-level tests.
+CI additionally runs Tiny Tapeout GDS hardening, the project signoff-policy
+gate, precheck, and gate-level tests. The release criteria, audited evidence,
+and bounded electrical waiver are recorded in
+[docs/tapeout-signoff.md](docs/tapeout-signoff.md).
 
 ## Attribution and license
 
