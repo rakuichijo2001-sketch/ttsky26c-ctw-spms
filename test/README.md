@@ -8,9 +8,10 @@ Coverage includes:
 - complete SPI register/status access, incomplete aborts, extra clocks,
   unsupported addresses, back-to-back frames, and configuration effects
 - first-sample-filled unity-gain FIR, FIR-valid classifier gating, deviation,
-  per-write anomaly persistence, and transient rejection
-- PG synchronization, symmetric 100 us stability qualification, glitches, and
-  zero count
+  exact classifier boundaries, per-write anomaly persistence, and transient
+  rejection
+- explicit two-flip-flop PG synchronization, symmetric 100 us stability
+  qualification, glitches, and zero count
 - normal startup/reverse shutdown and every rail timeout/RUN PG loss
 - HIGH/MEDIUM/LOW/CRITICAL load policy and staged restoration
 - frozen simultaneous-fault priority, OC/OT, latch and safe clear semantics

@@ -308,6 +308,39 @@ async def test_fir_deviation_classifier_and_anomaly_per_write(dut):
 
 
 @cocotb.test()
+async def test_classifier_boundaries_and_pg_two_flip_flop_sync(dut):
+    """Exact classifier boundaries and the explicit two-stage PG synchronizer."""
+    await start_clock(dut)
+
+    boundary_cases = (
+        (110, POWER_HIGH),
+        (109, POWER_MEDIUM),
+        (90, POWER_MEDIUM),
+        (89, POWER_LOW),
+        (70, POWER_LOW),
+        (69, POWER_CRITICAL),
+    )
+    for sample, expected_level in boundary_cases:
+        await reset_dut(dut)
+        await write_reg(dut, REG_HIGH_THRESHOLD, 110)
+        await write_reg(dut, REG_MED_THRESHOLD, 90)
+        await write_reg(dut, REG_LOW_THRESHOLD, 70)
+        await write_reg(dut, REG_POWER_SAMPLE, sample)
+        assert await read_reg(dut, REG_POWER_LEVEL) == expected_level
+
+    if os.getenv("GATES", "no") != "yes":
+        await reset_dut(dut)
+        assert int(dut.user_project.pg1_sync.value) == 0
+        dut.ui_in.value = 0x01
+        await RisingEdge(dut.clk)
+        await settle()
+        assert int(dut.user_project.pg1_sync.value) == 0
+        await RisingEdge(dut.clk)
+        await settle()
+        assert int(dut.user_project.pg1_sync.value) == 1
+
+
+@cocotb.test()
 async def test_pg_tick_filter_glitches_and_sequence_delay(dut):
     """PG uses 100 us samples, rejects glitches, and gates startup."""
     await start_clock(dut)
