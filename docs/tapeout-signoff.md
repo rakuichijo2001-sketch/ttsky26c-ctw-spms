@@ -127,5 +127,7 @@ five-percent CI ceiling still rejects any meaningful regression.
 ## Freeze rule
 
 After the release commit passes all CI jobs, merge it to `main`, verify the
-same hard gates on the merged commit, and tag that exact commit. Changes after
-the tag require a new candidate, full regression, and a new signoff record.
+same hard gates on the merged commit, and tag that exact commit. The GDS
+workflow creates annotated tag `v1.0.0-ttsky26c` on the first successful
+post-merge run and never moves it if it already exists. Changes after the tag
+require a new candidate, full regression, and a new signoff record.
