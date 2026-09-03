@@ -33,7 +33,13 @@ module spi_slave (
     wire spi_mosi_sync;
 
     reg        spi_sclk_sync_d;
-    reg  [4:0] bit_count;
+    /*
+     * One-hot bit position keeps each next-state path shallow.  The previous
+     * binary counter left bit_count[1] on the only routed max-slew violating
+     * data net at the slow SKY130 corner.
+     */
+    reg  [7:0] bit_position;
+    reg        second_byte;
     reg  [6:0] rx_shift;
     reg  [6:0] tx_shift;
     reg  [6:0] frame_addr;
@@ -75,7 +81,8 @@ module spi_slave (
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             spi_sclk_sync_d <= 1'b0;
-            bit_count       <= 5'd0;
+            bit_position    <= 8'b00000001;
+            second_byte     <= 1'b0;
             rx_shift        <= 7'd0;
             tx_shift        <= 7'd0;
             frame_addr      <= 7'd0;
@@ -98,7 +105,8 @@ module spi_slave (
             end
 
             if (spi_cs_n_sync) begin
-                bit_count  <= 5'd0;
+                bit_position <= 8'b00000001;
+                second_byte  <= 1'b0;
                 rx_shift   <= 7'd0;
                 tx_shift   <= 7'd0;
                 frame_addr <= 7'd0;
@@ -109,10 +117,12 @@ module spi_slave (
             end else if (!frame_done && sclk_rise) begin
                 rx_shift <= rx_byte_next[6:0];
 
-                if (bit_count == 5'd7) begin
+                if (!second_byte && bit_position[7]) begin
                     /* First byte: R/W in bit7, address in bits6:0. */
                     frame_addr <= rx_byte_next[6:0];
                     read_frame <= rx_byte_next[7];
+                    second_byte <= 1'b1;
+                    bit_position <= 8'b00000001;
 
                     if (rx_byte_next[7]) begin
                         read_addr         <= rx_byte_next[6:0];
@@ -121,7 +131,7 @@ module spi_slave (
                         tx_shift <= 7'd0;
                         miso_reg <= 1'b0;
                     end
-                end else if (bit_count >= 5'd8) begin
+                end else if (second_byte) begin
                     if (read_frame) begin
                         /*
                          * The master sampled the current MISO bit on this
@@ -129,14 +139,14 @@ module spi_slave (
                          * This avoids relying on a delayed synchronized
                          * falling edge at the specified 2 MHz maximum SCLK.
                          */
-                        if (bit_count < 5'd15) begin
+                        if (!bit_position[7]) begin
                             miso_reg <= tx_shift[6];
                             tx_shift <= {tx_shift[5:0], 1'b0};
                         end else begin
                             miso_reg   <= 1'b0;
                             frame_done <= 1'b1;
                         end
-                    end else if (bit_count == 5'd15) begin
+                    end else if (bit_position[7]) begin
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
                         write_data <= rx_byte_next;
@@ -146,8 +156,8 @@ module spi_slave (
                     end
                 end
 
-                if (bit_count < 5'd15) begin
-                    bit_count <= bit_count + 5'd1;
+                if (!bit_position[7]) begin
+                    bit_position <= {bit_position[6:0], 1'b0};
                 end
             end
         end

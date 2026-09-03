@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Enforce the bounded CTW-SPMS post-route signoff policy.
+"""Enforce the CTW-SPMS clean post-route signoff policy.
 
 This gate deliberately does not alter signoff constraints or reports. It
-requires all hard physical/timing checks to be clean and permits only the
-documented, tightly bounded max-transition exception.
+requires every physical and timing hard gate, including max transition, to be
+clean.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-MAX_SLEW_PINS = 2
-MAX_SLEW_OVERSHOOT_PCT = 5.0
+MAX_SLEW_PINS = 0
+MAX_SLEW_OVERSHOOT_PCT = 0.0
 EXPECTED_CORNERS = {
     f"{rc}_{pvt}"
     for rc in ("min", "nom", "max")
