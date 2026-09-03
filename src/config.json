@@ -13,13 +13,14 @@
 
   "//": "PL_TARGET_DENSITY_PCT - You can increase this if Global Placement fails with error GPL-0302.",
   "//": "Users have reported that values up to 80 worked well for them.",
-  "PL_TARGET_DENSITY_PCT": 70,
+  "PL_TARGET_DENSITY_PCT": 80,
 
   "//": "Limit CTS leaf clusters to the signoff max-fanout constraint.",
   "CTS_SINK_CLUSTERING_SIZE": 8,
 
-  "//": "Repair slew/capacitance again with routed parasitics before detailed routing.",
-  "RUN_POST_GRT_DESIGN_REPAIR": 1,
+  "//": "Over-repair nominal placement slew/cap to cover routed slow-corner derating.",
+  "DESIGN_REPAIR_MAX_SLEW_PCT": 65,
+  "DESIGN_REPAIR_MAX_CAP_PCT": 40,
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
