@@ -50,6 +50,9 @@ jobs:
         with:
           pdk: sky130A
 
+      - name: Enforce CTW-SPMS signoff policy
+        run: python3 scripts/check_signoff.py runs/wokwi
+
   precheck:
     needs: gds
     runs-on: ubuntu-24.04

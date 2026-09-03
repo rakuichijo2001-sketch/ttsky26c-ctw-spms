@@ -30,8 +30,8 @@
     "sky130_fd_sc_hd__dlymetal*_1"
   ],
 
-  "//": "Over-repair nominal placement slew to cover routed slow-corner derating.",
-  "DESIGN_REPAIR_MAX_SLEW_PCT": 55,
+  "//": "Strengthen placement slew repair to bound the remaining routed SPI data-net transition without changing RTL.",
+  "DESIGN_REPAIR_MAX_SLEW_PCT": 50,
   "DESIGN_REPAIR_MAX_CAP_PCT": 30,
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",

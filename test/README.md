@@ -18,8 +18,8 @@ Coverage includes:
 - frozen simultaneous-fault priority, OC/OT, latch and safe clear semantics
 - RUN-only watchdog heartbeat/timeout and retry
   success/failure/exhaustion/FAULT_LOCK with root-cause retention
-- zero boundaries, diagnostic saturation, illegal-state recovery, and safety
-  invariants
+- zero boundaries, diagnostic saturation, illegal rail-state recovery, and
+  safety invariants
 
 Run RTL simulation with:
 
