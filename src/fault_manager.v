@@ -25,23 +25,23 @@ module fault_manager (
         fault_code   = 4'h0;
         fault_detail = 3'd0;
 
-        /* Highest priority first: external safety faults before diagnostics. */
-        if (overcurrent_fault) begin
-            fault_valid = 1'b1;
-            fault_code  = FAULT_OVERCURRENT;
-        end else if (overtemp_fault) begin
+        /* Frozen priority: OT, OC, anomaly, startup/PG, watchdog. */
+        if (overtemp_fault) begin
             fault_valid = 1'b1;
             fault_code  = FAULT_OVERTEMP;
+        end else if (overcurrent_fault) begin
+            fault_valid = 1'b1;
+            fault_code  = FAULT_OVERCURRENT;
         end else if (power_anomaly_fault) begin
             fault_valid = 1'b1;
             fault_code  = FAULT_POWER_ANOMALY;
-        end else if (watchdog_timeout_fault) begin
-            fault_valid = 1'b1;
-            fault_code  = FAULT_WATCHDOG_TIMEOUT;
         end else if (rail_fault_strobe) begin
             fault_valid  = 1'b1;
             fault_code   = rail_fault_code;
             fault_detail = rail_fault_detail;
+        end else if (watchdog_timeout_fault) begin
+            fault_valid = 1'b1;
+            fault_code  = FAULT_WATCHDOG_TIMEOUT;
         end
     end
 

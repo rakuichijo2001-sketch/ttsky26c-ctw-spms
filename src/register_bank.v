@@ -12,6 +12,7 @@ module register_bank (
     output reg  [7:0] read_data,
 
     output reg  [7:0] power_sample,
+    output reg        power_sample_strobe,
     output reg  [7:0] power_nominal,
     output reg  [7:0] anomaly_warn_threshold,
     output reg  [7:0] anomaly_fault_threshold,
@@ -42,35 +43,40 @@ module register_bank (
     input  wire [7:0] fault_count,
     input  wire [7:0] retry_count,
     input  wire [4:0] current_state,
-    input  wire [2:0] last_timeout_rail
+    input  wire [2:0] fault_detail
 );
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             power_sample             <= 8'h00;
+            power_sample_strobe      <= 1'b0;
             power_nominal            <= 8'h80;
             anomaly_warn_threshold   <= 8'h10;
-            anomaly_fault_threshold  <= 8'h30;
+            anomaly_fault_threshold  <= 8'h20;
             power_high_threshold     <= 8'hc0;
             power_med_threshold      <= 8'h80;
             power_low_threshold      <= 8'h40;
             pg_stable_count          <= 8'h03;
-            sequence_delay           <= 8'h03;
-            startup_timeout          <= 8'h40;
+            sequence_delay           <= 8'h05;
+            startup_timeout          <= 8'h64;
             watchdog_timeout         <= 8'h64;
-            retry_delay              <= 8'h14;
+            retry_delay              <= 8'h32;
             max_retry                <= 8'h03;
             system_enable            <= 1'b0;
             force_shutdown           <= 1'b0;
             watchdog_enable          <= 1'b0;
             clear_fault_pulse        <= 1'b0;
-            warn_persist_count       <= 8'h03;
+            warn_persist_count       <= 8'h02;
             fault_persist_count      <= 8'h03;
         end else begin
+            power_sample_strobe <= 1'b0;
             clear_fault_pulse <= 1'b0;
             if (write_strobe) begin
                 case (write_addr)
-                    7'h00: power_sample            <= write_data;
+                    7'h00: begin
+                        power_sample        <= write_data;
+                        power_sample_strobe <= 1'b1;
+                    end
                     7'h01: power_nominal           <= write_data;
                     7'h02: anomaly_warn_threshold  <= write_data;
                     7'h03: anomaly_fault_threshold <= write_data;
@@ -127,7 +133,8 @@ module register_bank (
             7'h18: read_data = fault_count;
             7'h19: read_data = retry_count;
             7'h1a: read_data = {3'b000, current_state};
-            7'h1b: read_data = {5'b00000, last_timeout_rail};
+            7'h1b: read_data = {5'b00000, fault_detail};
+            7'h1f: read_data = 8'h01;
             default: read_data = 8'h00;
         endcase
     end

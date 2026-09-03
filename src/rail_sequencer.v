@@ -5,6 +5,7 @@
 module rail_sequencer (
     input  wire       clk,
     input  wire       rst_n,
+    input  wire       timer_tick_ce,
     input  wire       system_request,
     input  wire       fault_shutdown,
     input  wire [3:0] pg_good,
@@ -84,24 +85,32 @@ module rail_sequencer (
                             timeout_count  <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R1;
                         end else if (pg_good[0]) begin
-                            if ((sequence_delay == 8'd0) ||
-                                (sequence_count >= (sequence_delay - 8'd1))) begin
+                            if (sequence_delay == 8'd0) begin
                                 sequence_count <= 8'h00;
                                 timeout_count  <= 8'h00;
                                 current_state  <= ST_RAIL2_START;
-                            end else begin
+                            end else if (timer_tick_ce &&
+                                         (sequence_count >=
+                                          (sequence_delay - 8'd1))) begin
+                                sequence_count <= 8'h00;
+                                timeout_count  <= 8'h00;
+                                current_state  <= ST_RAIL2_START;
+                            end else if (timer_tick_ce &&
+                                         (sequence_count != 8'hff)) begin
                                 sequence_count <= sequence_count + 8'd1;
                             end
                         end else begin
                             sequence_count <= 8'h00;
-                            if ((startup_timeout == 8'd0) ||
-                                (timeout_count >= (startup_timeout - 8'd1))) begin
-                                fault_strobe <= 1'b1;
-                                fault_code   <= FAULT_STARTUP_TIMEOUT;
-                                fault_detail <= 3'd1;
-                                timeout_count <= 8'h00;
-                            end else begin
-                                timeout_count <= timeout_count + 8'd1;
+                            if ((startup_timeout != 8'd0) && timer_tick_ce) begin
+                                if (timeout_count >=
+                                    (startup_timeout - 8'd1)) begin
+                                    fault_strobe  <= 1'b1;
+                                    fault_code    <= FAULT_STARTUP_TIMEOUT;
+                                    fault_detail  <= 3'd1;
+                                    timeout_count <= 8'h00;
+                                end else if (timeout_count != 8'hff) begin
+                                    timeout_count <= timeout_count + 8'd1;
+                                end
                             end
                         end
                     end
@@ -120,24 +129,32 @@ module rail_sequencer (
                             timeout_count  <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R2;
                         end else if (pg_good[1]) begin
-                            if ((sequence_delay == 8'd0) ||
-                                (sequence_count >= (sequence_delay - 8'd1))) begin
+                            if (sequence_delay == 8'd0) begin
                                 sequence_count <= 8'h00;
                                 timeout_count  <= 8'h00;
                                 current_state  <= ST_RAIL3_START;
-                            end else begin
+                            end else if (timer_tick_ce &&
+                                         (sequence_count >=
+                                          (sequence_delay - 8'd1))) begin
+                                sequence_count <= 8'h00;
+                                timeout_count  <= 8'h00;
+                                current_state  <= ST_RAIL3_START;
+                            end else if (timer_tick_ce &&
+                                         (sequence_count != 8'hff)) begin
                                 sequence_count <= sequence_count + 8'd1;
                             end
                         end else begin
                             sequence_count <= 8'h00;
-                            if ((startup_timeout == 8'd0) ||
-                                (timeout_count >= (startup_timeout - 8'd1))) begin
-                                fault_strobe <= 1'b1;
-                                fault_code   <= FAULT_STARTUP_TIMEOUT;
-                                fault_detail <= 3'd2;
-                                timeout_count <= 8'h00;
-                            end else begin
-                                timeout_count <= timeout_count + 8'd1;
+                            if ((startup_timeout != 8'd0) && timer_tick_ce) begin
+                                if (timeout_count >=
+                                    (startup_timeout - 8'd1)) begin
+                                    fault_strobe  <= 1'b1;
+                                    fault_code    <= FAULT_STARTUP_TIMEOUT;
+                                    fault_detail  <= 3'd2;
+                                    timeout_count <= 8'h00;
+                                end else if (timeout_count != 8'hff) begin
+                                    timeout_count <= timeout_count + 8'd1;
+                                end
                             end
                         end
                     end
@@ -156,24 +173,32 @@ module rail_sequencer (
                             timeout_count  <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R3;
                         end else if (pg_good[2]) begin
-                            if ((sequence_delay == 8'd0) ||
-                                (sequence_count >= (sequence_delay - 8'd1))) begin
+                            if (sequence_delay == 8'd0) begin
                                 sequence_count <= 8'h00;
                                 timeout_count  <= 8'h00;
                                 current_state  <= ST_RAIL4_START;
-                            end else begin
+                            end else if (timer_tick_ce &&
+                                         (sequence_count >=
+                                          (sequence_delay - 8'd1))) begin
+                                sequence_count <= 8'h00;
+                                timeout_count  <= 8'h00;
+                                current_state  <= ST_RAIL4_START;
+                            end else if (timer_tick_ce &&
+                                         (sequence_count != 8'hff)) begin
                                 sequence_count <= sequence_count + 8'd1;
                             end
                         end else begin
                             sequence_count <= 8'h00;
-                            if ((startup_timeout == 8'd0) ||
-                                (timeout_count >= (startup_timeout - 8'd1))) begin
-                                fault_strobe <= 1'b1;
-                                fault_code   <= FAULT_STARTUP_TIMEOUT;
-                                fault_detail <= 3'd3;
-                                timeout_count <= 8'h00;
-                            end else begin
-                                timeout_count <= timeout_count + 8'd1;
+                            if ((startup_timeout != 8'd0) && timer_tick_ce) begin
+                                if (timeout_count >=
+                                    (startup_timeout - 8'd1)) begin
+                                    fault_strobe  <= 1'b1;
+                                    fault_code    <= FAULT_STARTUP_TIMEOUT;
+                                    fault_detail  <= 3'd3;
+                                    timeout_count <= 8'h00;
+                                end else if (timeout_count != 8'hff) begin
+                                    timeout_count <= timeout_count + 8'd1;
+                                end
                             end
                         end
                     end
@@ -192,24 +217,32 @@ module rail_sequencer (
                             timeout_count  <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R4;
                         end else if (pg_good[3]) begin
-                            if ((sequence_delay == 8'd0) ||
-                                (sequence_count >= (sequence_delay - 8'd1))) begin
+                            if (sequence_delay == 8'd0) begin
                                 sequence_count <= 8'h00;
                                 timeout_count  <= 8'h00;
                                 current_state  <= ST_RUN;
-                            end else begin
+                            end else if (timer_tick_ce &&
+                                         (sequence_count >=
+                                          (sequence_delay - 8'd1))) begin
+                                sequence_count <= 8'h00;
+                                timeout_count  <= 8'h00;
+                                current_state  <= ST_RUN;
+                            end else if (timer_tick_ce &&
+                                         (sequence_count != 8'hff)) begin
                                 sequence_count <= sequence_count + 8'd1;
                             end
                         end else begin
                             sequence_count <= 8'h00;
-                            if ((startup_timeout == 8'd0) ||
-                                (timeout_count >= (startup_timeout - 8'd1))) begin
-                                fault_strobe <= 1'b1;
-                                fault_code   <= FAULT_STARTUP_TIMEOUT;
-                                fault_detail <= 3'd4;
-                                timeout_count <= 8'h00;
-                            end else begin
-                                timeout_count <= timeout_count + 8'd1;
+                            if ((startup_timeout != 8'd0) && timer_tick_ce) begin
+                                if (timeout_count >=
+                                    (startup_timeout - 8'd1)) begin
+                                    fault_strobe  <= 1'b1;
+                                    fault_code    <= FAULT_STARTUP_TIMEOUT;
+                                    fault_detail  <= 3'd4;
+                                    timeout_count <= 8'h00;
+                                end else if (timeout_count != 8'hff) begin
+                                    timeout_count <= timeout_count + 8'd1;
+                                end
                             end
                         end
                     end
@@ -241,44 +274,64 @@ module rail_sequencer (
 
                     ST_SHUTDOWN_R4: begin
                         rail_en <= 4'b0111;
-                        if ((sequence_delay == 8'd0) ||
-                            (sequence_count >= (sequence_delay - 8'd1))) begin
+                        if (sequence_delay == 8'd0) begin
                             sequence_count <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R3;
-                        end else begin
+                        end else if (timer_tick_ce &&
+                                     (sequence_count >=
+                                      (sequence_delay - 8'd1))) begin
+                            sequence_count <= 8'h00;
+                            current_state  <= ST_SHUTDOWN_R3;
+                        end else if (timer_tick_ce &&
+                                     (sequence_count != 8'hff)) begin
                             sequence_count <= sequence_count + 8'd1;
                         end
                     end
 
                     ST_SHUTDOWN_R3: begin
                         rail_en <= 4'b0011;
-                        if ((sequence_delay == 8'd0) ||
-                            (sequence_count >= (sequence_delay - 8'd1))) begin
+                        if (sequence_delay == 8'd0) begin
                             sequence_count <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R2;
-                        end else begin
+                        end else if (timer_tick_ce &&
+                                     (sequence_count >=
+                                      (sequence_delay - 8'd1))) begin
+                            sequence_count <= 8'h00;
+                            current_state  <= ST_SHUTDOWN_R2;
+                        end else if (timer_tick_ce &&
+                                     (sequence_count != 8'hff)) begin
                             sequence_count <= sequence_count + 8'd1;
                         end
                     end
 
                     ST_SHUTDOWN_R2: begin
                         rail_en <= 4'b0001;
-                        if ((sequence_delay == 8'd0) ||
-                            (sequence_count >= (sequence_delay - 8'd1))) begin
+                        if (sequence_delay == 8'd0) begin
                             sequence_count <= 8'h00;
                             current_state  <= ST_SHUTDOWN_R1;
-                        end else begin
+                        end else if (timer_tick_ce &&
+                                     (sequence_count >=
+                                      (sequence_delay - 8'd1))) begin
+                            sequence_count <= 8'h00;
+                            current_state  <= ST_SHUTDOWN_R1;
+                        end else if (timer_tick_ce &&
+                                     (sequence_count != 8'hff)) begin
                             sequence_count <= sequence_count + 8'd1;
                         end
                     end
 
                     ST_SHUTDOWN_R1: begin
                         rail_en <= 4'b0000;
-                        if ((sequence_delay == 8'd0) ||
-                            (sequence_count >= (sequence_delay - 8'd1))) begin
+                        if (sequence_delay == 8'd0) begin
                             sequence_count <= 8'h00;
                             current_state  <= ST_OFF;
-                        end else begin
+                        end else if (timer_tick_ce &&
+                                     (sequence_count >=
+                                      (sequence_delay - 8'd1))) begin
+                            sequence_count <= 8'h00;
+                            current_state  <= ST_OFF;
+                        end else if (timer_tick_ce &&
+                                     (sequence_count != 8'hff)) begin
                             sequence_count <= sequence_count + 8'd1;
                         end
                     end

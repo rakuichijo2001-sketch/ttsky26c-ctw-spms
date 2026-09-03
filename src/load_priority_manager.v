@@ -5,6 +5,7 @@
 module load_priority_manager (
     input  wire       clk,
     input  wire       rst_n,
+    input  wire       timer_tick_ce,
     input  wire       system_run,
     input  wire       hard_shutdown,
     input  wire [1:0] power_level,
@@ -36,8 +37,7 @@ module load_priority_manager (
             load_en       <= target_loads;
             restore_count <= 8'h00;
         end else if (target_loads > load_en) begin
-            if ((restore_delay == 8'd0) ||
-                (restore_count >= (restore_delay - 8'd1))) begin
+            if (restore_delay == 8'd0) begin
                 restore_count <= 8'h00;
                 if (!load_en[0] && target_loads[0]) begin
                     load_en[0] <= 1'b1;
@@ -46,7 +46,17 @@ module load_priority_manager (
                 end else if (!load_en[2] && target_loads[2]) begin
                     load_en[2] <= 1'b1;
                 end
-            end else begin
+            end else if (timer_tick_ce &&
+                         (restore_count >= (restore_delay - 8'd1))) begin
+                restore_count <= 8'h00;
+                if (!load_en[0] && target_loads[0]) begin
+                    load_en[0] <= 1'b1;
+                end else if (!load_en[1] && target_loads[1]) begin
+                    load_en[1] <= 1'b1;
+                end else if (!load_en[2] && target_loads[2]) begin
+                    load_en[2] <= 1'b1;
+                end
+            end else if (timer_tick_ce && (restore_count != 8'hff)) begin
                 restore_count <= restore_count + 8'd1;
             end
         end else begin

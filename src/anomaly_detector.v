@@ -5,6 +5,7 @@
 module anomaly_detector (
     input  wire       clk,
     input  wire       rst_n,
+    input  wire       sample_strobe,
     input  wire [7:0] deviation,
     input  wire [7:0] warn_threshold,
     input  wire [7:0] fault_threshold,
@@ -23,7 +24,7 @@ module anomaly_detector (
             fault_count    <= 8'h00;
             warning_active <= 1'b0;
             fault_active   <= 1'b0;
-        end else begin
+        end else if (sample_strobe) begin
             if (deviation >= warn_threshold) begin
                 if (warn_count != 8'hff) begin
                     warn_count <= warn_count + 8'd1;

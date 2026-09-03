@@ -38,6 +38,7 @@ module tt_um_ctw_spms (
     wire       spi_write_strobe;
 
     wire [7:0] power_sample;
+    wire       power_sample_strobe;
     wire [7:0] power_nominal;
     wire [7:0] anomaly_warn_threshold;
     wire [7:0] anomaly_fault_threshold;
@@ -58,6 +59,8 @@ module tt_um_ctw_spms (
     wire [7:0] fault_persist_count;
 
     wire [7:0] filtered_sample;
+    wire       filtered_valid;
+    wire       filtered_strobe;
     wire [7:0] deviation;
     wire       anomaly_warning;
     wire       anomaly_fault;
@@ -82,7 +85,7 @@ module tt_um_ctw_spms (
     wire [3:0] last_fault;
     wire [7:0] fault_count;
     wire [7:0] retry_count;
-    wire [2:0] last_timeout_rail;
+    wire [2:0] last_fault_detail;
 
     wire force_shutdown_active;
     wire system_request;
@@ -130,7 +133,9 @@ module tt_um_ctw_spms (
         .write_strobe(spi_write_strobe),
         .write_addr(spi_write_addr), .write_data(spi_write_data),
         .read_addr(spi_read_addr), .read_data(spi_read_data),
-        .power_sample(power_sample), .power_nominal(power_nominal),
+        .power_sample(power_sample),
+        .power_sample_strobe(power_sample_strobe),
+        .power_nominal(power_nominal),
         .anomaly_warn_threshold(anomaly_warn_threshold),
         .anomaly_fault_threshold(anomaly_fault_threshold),
         .power_high_threshold(power_high_threshold),
@@ -152,12 +157,15 @@ module tt_um_ctw_spms (
         .load_status(final_load_en), .last_fault(last_fault),
         .fault_count(fault_count), .retry_count(retry_count),
         .current_state(current_state),
-        .last_timeout_rail(last_timeout_rail)
+        .fault_detail(last_fault_detail)
     );
 
     power_fir u_power_fir (
-        .clk(clk), .rst_n(rst_n), .sample_in(power_sample),
-        .filtered_sample(filtered_sample)
+        .clk(clk), .rst_n(rst_n),
+        .sample_strobe(power_sample_strobe), .sample_in(power_sample),
+        .filtered_sample(filtered_sample),
+        .filtered_valid(filtered_valid),
+        .filtered_strobe(filtered_strobe)
     );
 
     power_deviation u_power_deviation (
@@ -166,7 +174,8 @@ module tt_um_ctw_spms (
     );
 
     anomaly_detector u_anomaly_detector (
-        .clk(clk), .rst_n(rst_n), .deviation(deviation),
+        .clk(clk), .rst_n(rst_n), .sample_strobe(filtered_strobe),
+        .deviation(deviation),
         .warn_threshold(anomaly_warn_threshold),
         .fault_threshold(anomaly_fault_threshold),
         .warn_persist_count(warn_persist_count),
@@ -175,23 +184,27 @@ module tt_um_ctw_spms (
     );
 
     power_level_classifier u_power_level_classifier (
-        .filtered_sample(filtered_sample),
+        .sample_valid(filtered_valid), .filtered_sample(filtered_sample),
         .high_threshold(power_high_threshold),
         .med_threshold(power_med_threshold),
         .low_threshold(power_low_threshold),
         .power_level(power_level)
     );
 
-    pg_filter u_pg1_filter (.clk(clk), .rst_n(rst_n), .pg_sync(pg1_sync),
+    pg_filter u_pg1_filter (.clk(clk), .rst_n(rst_n),
+                            .timer_tick_ce(timer_tick_ce), .pg_sync(pg1_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[0]));
-    pg_filter u_pg2_filter (.clk(clk), .rst_n(rst_n), .pg_sync(pg2_sync),
+    pg_filter u_pg2_filter (.clk(clk), .rst_n(rst_n),
+                            .timer_tick_ce(timer_tick_ce), .pg_sync(pg2_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[1]));
-    pg_filter u_pg3_filter (.clk(clk), .rst_n(rst_n), .pg_sync(pg3_sync),
+    pg_filter u_pg3_filter (.clk(clk), .rst_n(rst_n),
+                            .timer_tick_ce(timer_tick_ce), .pg_sync(pg3_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[2]));
-    pg_filter u_pg4_filter (.clk(clk), .rst_n(rst_n), .pg_sync(pg4_sync),
+    pg_filter u_pg4_filter (.clk(clk), .rst_n(rst_n),
+                            .timer_tick_ce(timer_tick_ce), .pg_sync(pg4_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[3]));
 
@@ -200,7 +213,8 @@ module tt_um_ctw_spms (
     assign sequencer_run = (current_state == ST_RUN);
 
     rail_sequencer u_rail_sequencer (
-        .clk(clk), .rst_n(rst_n), .system_request(system_request),
+        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
+        .system_request(system_request),
         .fault_shutdown(hard_fault_override), .pg_good(pg_good),
         .sequence_delay(sequence_delay), .startup_timeout(startup_timeout),
         .rail_en(sequencer_rail_en), .current_state(current_state),
@@ -211,7 +225,7 @@ module tt_um_ctw_spms (
 
     watchdog u_watchdog (
         .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
-        .enable(watchdog_enable & system_request & ~fault_latched),
+        .enable(watchdog_enable & sequencer_run & ~fault_latched),
         .heartbeat(watchdog_sync), .timeout_cfg(watchdog_timeout),
         .timeout_fault(watchdog_fault)
     );
@@ -237,14 +251,14 @@ module tt_um_ctw_spms (
         .fault_latched(fault_latched), .fault_lock(fault_lock),
         .retry_pulse(retry_pulse), .last_fault(last_fault),
         .fault_count(fault_count), .retry_count(retry_count),
-        .last_timeout_rail(last_timeout_rail)
+        .last_fault_detail(last_fault_detail)
     );
 
     assign hard_fault_override = fault_event_valid | fault_latched | fault_lock;
     assign safe_shutdown = hard_fault_override | force_shutdown_active | ~ena_sync;
 
     load_priority_manager u_load_priority_manager (
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
         .system_run(sequencer_run & system_request),
         .hard_shutdown(safe_shutdown), .power_level(power_level),
         .restore_delay(sequence_delay), .load_en(manager_load_en)
@@ -261,7 +275,7 @@ module tt_um_ctw_spms (
                      fault_lock, fault_latched, anomaly_warning,
                      sequencer_run, system_enable};
 
-    assign uo_out  = {fault_latched, final_load_en, final_rail_en};
+    assign uo_out  = {hard_fault_override, final_load_en, final_rail_en};
     assign uio_out = {7'b0000000, spi_miso};
     assign uio_oe  = 8'b00000001;
 

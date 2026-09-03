@@ -7,12 +7,15 @@ Coverage includes:
 - reset and active reset, including deterministic outputs and `uio_oe`
 - complete SPI register/status access, incomplete aborts, extra clocks,
   unsupported addresses, back-to-back frames, and configuration effects
-- FIR, deviation, classifier, anomaly persistence, and transient rejection
-- PG synchronization, stability qualification, glitches, and zero count
+- first-sample-filled unity-gain FIR, FIR-valid classifier gating, deviation,
+  per-write anomaly persistence, and transient rejection
+- PG synchronization, symmetric 100 us stability qualification, glitches, and
+  zero count
 - normal startup/reverse shutdown and every rail timeout/RUN PG loss
 - HIGH/MEDIUM/LOW/CRITICAL load policy and staged restoration
-- simultaneous-fault priority, OC/OT, latch and safe clear semantics
-- watchdog heartbeat/timeout and retry success/failure/exhaustion/FAULT_LOCK
+- frozen simultaneous-fault priority, OC/OT, latch and safe clear semantics
+- RUN-only watchdog heartbeat/timeout and retry
+  success/failure/exhaustion/FAULT_LOCK with root-cause retention
 - zero boundaries, diagnostic saturation, illegal-state recovery, and safety
   invariants
 

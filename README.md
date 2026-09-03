@@ -94,33 +94,35 @@ The single authoritative address/default table is
 
 ## Signal processing
 
-The unsigned FIR is:
+Only a completed write to `POWER_SAMPLE` advances the unsigned FIR:
 
 ```text
-y[n] = (x[n] + 2*x[n-1] + 2*x[n-2] + x[n-3]) / 4
+y[n] = (x[n] + x[n-1] + x[n-2] + x[n-3]) >> 2
 ```
 
-The accumulator is explicitly 11 bits. Division truncates the two fractional
-bits, and results above 255 saturate to `8'hFF`. The deviation block performs a
-safe unsigned absolute difference between the filtered sample and
-`POWER_NOMINAL`.
+The accumulator is explicitly 10 bits. The first write fills all four taps, so
+the first filtered result equals the first sample without a startup transient.
+Before that write, FIR-valid is LOW and the classifier reports CRITICAL. The
+deviation block performs a safe unsigned absolute difference between the
+filtered sample and `POWER_NOMINAL`.
 
-Anomaly counters require consecutive samples and saturate at 255. A configured
-persistence of zero or one qualifies on the first matching sample. Anomaly
+Anomaly counters advance only on completed POWER_SAMPLE writes, require
+consecutive filtered samples, and saturate at 255. A configured persistence of
+zero or one qualifies on the first matching sample. Anomaly
 status is observable while disabled, but a severe anomaly enters the fault path
 only while `SYSTEM_ENABLE` and synchronized `ena` request operation.
 
 ## Rail and PG behavior
 
-`PG_STABLE_COUNT` and `STARTUP_TIMEOUT` count 10 MHz core clocks.
-`SEQUENCE_DELAY` also counts core clocks and is reused as the load-restoration
-delay. Zero delay advances on the next state clock. A timeout value of zero
-faults on the first WAIT_PG clock if PG is not already qualified.
+`PG_STABLE_COUNT`, `STARTUP_TIMEOUT`, and `SEQUENCE_DELAY` all use the
+shared 10 kHz clock-enable, so one count is 100 us. `SEQUENCE_DELAY` is also
+the load-restoration delay. Zero sequence delay adds no intentional wait;
+`STARTUP_TIMEOUT=0` disables startup timeout.
 
-PG assertion requires the programmed number of consecutive synchronized HIGH
-samples. Zero and one both accept the first synchronized HIGH. A synchronized
-LOW immediately removes qualified PG. In RUN, PG-loss priority is PG1, PG2,
-PG3, then PG4.
+Both PG assertion and deassertion require the programmed number of consecutive
+synchronized 100 us samples, preventing a short pulse in either direction from
+changing the qualified state. `PG_STABLE_COUNT=0` qualifies after one sampled
+tick. In RUN, PG-loss priority is PG1, PG2, PG3, then PG4.
 
 Normal startup is RAIL1 -> RAIL2 -> RAIL3 -> RAIL4 -> RUN. Normal removal of
 `SYSTEM_ENABLE` powers down RAIL4 -> RAIL3 -> RAIL2 -> RAIL1. A hard fault,
@@ -137,22 +139,27 @@ final rail/load outputs LOW.
 | CRITICAL | OFF | OFF | OFF |
 
 Shedding applies at the next core clock. Recovery restores one missing load at
-a time in priority order after each `SEQUENCE_DELAY`; loads never turn on merely
-because reset was released and are permitted only in RUN.
+a time in priority order after each 100 us `SEQUENCE_DELAY`; loads never turn
+on merely because reset was released and are permitted only in RUN.
 
 ## Fault and retry policy
 
 Simultaneous fault priority is:
 
-1. OVERCURRENT
-2. OVERTEMP
+1. OVERTEMP
+2. OVERCURRENT
 3. qualified POWER_ANOMALY
-4. WATCHDOG_TIMEOUT
-5. rail sequencer fault; RUN PG-loss priority is PG1 through PG4
+4. STARTUP_TIMEOUT
+5. PG1_LOSS
+6. PG2_LOSS
+7. PG3_LOSS
+8. PG4_LOSS
+9. WATCHDOG_TIMEOUT
 
 Every accepted event increments the saturating `FAULT_COUNT` and updates
-`LAST_FAULT`. Startup timeout records its rail separately. A critical event
-immediately activates the final safety override, then latches FAULT.
+`LAST_FAULT`. `FAULT_DETAIL` records the rail number for startup-timeout and
+PG-loss faults. A critical event immediately activates the final safety
+override, then latches FAULT.
 
 `CLEAR_FAULT` is a self-clearing command pulse. It is ignored while an active
 level fault remains. It does not erase historical `LAST_FAULT` or `FAULT_COUNT`.
@@ -160,15 +167,17 @@ level fault remains. It does not erase historical `LAST_FAULT` or `FAULT_COUNT`.
 `RETRY_DELAY` and `WATCHDOG_TIMEOUT` use the shared 10 kHz clock-enable tick, so
 one count is 100 us. There is no generated clock. After a fault, outputs remain
 safe for `RETRY_DELAY`, then startup may retry if the source is absent. A source
-that remains active consumes bounded retry windows without enabling outputs.
-After `MAX_RETRY` attempts, the controller enters FAULT_LOCK, records
-RETRY_EXHAUSTED, and stays safe until a valid clear. `MAX_RETRY=0` locks
-immediately. A successful return to RUN ends the retry episode; the displayed
-retry count is retained for diagnostics until clear or the next independent
-episode.
+that remains active keeps the fault latched and consumes no retry attempt.
+After `MAX_RETRY` failed attempts, the controller enters FAULT_LOCK and stays
+safe until a valid clear. Retry exhaustion never overwrites the physical root
+cause in `LAST_FAULT`. `MAX_RETRY=0` disables automatic retry and leaves the
+fault latched for manual clear. A successful return to RUN ends the retry
+episode; the displayed retry count is retained for diagnostics until clear or
+the next independent episode.
 
-The watchdog is active only when its control bit, the system request, and the
-fault policy permit operation. Either heartbeat edge/toggle resets its timer.
+The watchdog is active only in RUN when its control bit and the fault policy
+permit operation. Either heartbeat edge/toggle resets its timer, and
+`WATCHDOG_TIMEOUT=0` disables watchdog timeout.
 
 ## Reset and illegal-state behavior
 

@@ -22,15 +22,14 @@ module watchdog (
             timeout_fault <= 1'b0;
         end else begin
             heartbeat_d <= heartbeat;
-            if (!enable) begin
+            if (!enable || (timeout_cfg == 8'd0)) begin
                 timeout_count <= 8'h00;
                 timeout_fault <= 1'b0;
             end else if (heartbeat != heartbeat_d) begin
                 timeout_count <= 8'h00;
                 timeout_fault <= 1'b0;
             end else if (timer_tick_ce) begin
-                if ((timeout_cfg == 8'd0) ||
-                    (timeout_count >= (timeout_cfg - 8'd1))) begin
+                if (timeout_count >= (timeout_cfg - 8'd1)) begin
                     timeout_fault <= 1'b1;
                 end else begin
                     timeout_count <= timeout_count + 8'd1;

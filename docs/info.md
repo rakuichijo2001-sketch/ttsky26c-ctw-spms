@@ -25,8 +25,8 @@ defaults, status flags, fault codes, state codes, and zero-value behavior.
 Reset, a hard fault, force shutdown, or inactive synchronized Tiny Tapeout
 `ena` makes all final rail/load enables zero. FAULT_LOCK additionally guarantees
 FAULT=1. All asynchronous single-bit inputs pass through explicit 2-flip-flop
-synchronizers. PG assertion requires consecutive stable samples; a synchronized
-PG deassertion removes GOOD immediately.
+synchronizers. PG assertion and deassertion both require consecutive sampled
+100 us ticks, so short glitches in either direction do not change qualified PG.
 
 The design contains no generated/gated clock, functional initial block,
 delay statement, multiplier, variable divider, inferred memory, CPU, analog

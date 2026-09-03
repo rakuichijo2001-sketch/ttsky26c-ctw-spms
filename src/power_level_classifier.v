@@ -3,6 +3,7 @@
 `default_nettype none
 
 module power_level_classifier (
+    input  wire       sample_valid,
     input  wire [7:0] filtered_sample,
     input  wire [7:0] high_threshold,
     input  wire [7:0] med_threshold,
@@ -16,7 +17,9 @@ module power_level_classifier (
     localparam [1:0] POWER_HIGH     = 2'b11;
 
     always @* begin
-        if (filtered_sample >= high_threshold) begin
+        if (!sample_valid) begin
+            power_level = POWER_CRITICAL;
+        end else if (filtered_sample >= high_threshold) begin
             power_level = POWER_HIGH;
         end else if (filtered_sample >= med_threshold) begin
             power_level = POWER_MEDIUM;
