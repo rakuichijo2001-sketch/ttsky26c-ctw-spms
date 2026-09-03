@@ -31,11 +31,8 @@
   ],
 
   "//": "Over-repair nominal placement slew to cover routed slow-corner derating.",
-  "DESIGN_REPAIR_MAX_SLEW_PCT": 50,
+  "DESIGN_REPAIR_MAX_SLEW_PCT": 55,
   "DESIGN_REPAIR_MAX_CAP_PCT": 30,
-
-  "//": "Use the standard constraints plus a PnR-only local slew constraint for the final SPI net.",
-  "PNR_SDC_FILE": "dir::pnr.sdc",
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
