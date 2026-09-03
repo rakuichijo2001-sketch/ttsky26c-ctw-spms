@@ -18,8 +18,8 @@
   "//": "Limit CTS leaf clusters to the signoff max-fanout constraint.",
   "CTS_SINK_CLUSTERING_SIZE": 8,
 
-  "//": "Leave one load of headroom for post-route antenna diodes without the fanout-6 buffer explosion.",
-  "MAX_FANOUT_CONSTRAINT": 7,
+  "//": "Keep data/control fanout trees bounded without the fanout-6 buffer explosion.",
+  "MAX_FANOUT_CONSTRAINT": 8,
 
   "//": "Do not use drive-1 buffers for reset/control fanout trees.",
   "EXTRA_EXCLUDED_CELLS": [
@@ -31,7 +31,7 @@
   ],
 
   "//": "Over-repair nominal placement slew to cover routed slow-corner derating.",
-  "DESIGN_REPAIR_MAX_SLEW_PCT": 40,
+  "DESIGN_REPAIR_MAX_SLEW_PCT": 45,
   "DESIGN_REPAIR_MAX_CAP_PCT": 30,
 
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
