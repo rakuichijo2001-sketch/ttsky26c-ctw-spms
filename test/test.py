@@ -299,6 +299,23 @@ async def test_spi_protocol_atomic_write_abort_and_sample_strobe(dut):
 
 
 @cocotb.test()
+async def test_spi_write_data_partition_round_trip(dut):
+    """Each physical write-data partition preserves bits 3:2 exactly."""
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    writes = (
+        (REG_WARN_THRESHOLD, 0xA4),
+        (REG_LOW_THRESHOLD, 0x58),
+        (REG_WATCHDOG_TIMEOUT, 0x3C),
+        (REG_WARN_PERSIST, 0xC0),
+    )
+    for address, value in writes:
+        await write_reg(dut, address, value)
+        assert await read_reg(dut, address) == value
+
+
+@cocotb.test()
 async def test_fir_deviation_classifier_and_anomaly_per_write(dut):
     """Unity-gain FIR, first-sample fill, valid gating, persistence per write."""
     await start_clock(dut)
