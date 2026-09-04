@@ -34,11 +34,12 @@ module spi_slave (
 
     reg        spi_sclk_sync_d;
     /*
-     * One-hot bit position keeps each next-state path shallow.  The previous
-     * binary counter left bit_count[1] on the only routed max-slew violating
-     * data net at the slow SKY130 corner.
+     * Four-bit Johnson phase counter: eight positions with shift/invert
+     * next-state paths.  This avoids both the binary carry path that was
+     * marginal after routing and the area/congestion cost of an eight-bit
+     * one-hot counter.
      */
-    reg  [7:0] bit_position;
+    reg  [3:0] bit_phase;
     reg        second_byte;
     reg  [6:0] rx_shift;
     reg  [6:0] tx_shift;
@@ -49,6 +50,7 @@ module spi_slave (
     reg        miso_reg;
 
     wire       sclk_rise;
+    wire       phase_last;
     wire [7:0] rx_byte_next;
 
     sync_2ff #(
@@ -75,13 +77,14 @@ module spi_slave (
     );
 
     assign sclk_rise = spi_sclk_sync & ~spi_sclk_sync_d;
+    assign phase_last = (bit_phase == 4'b1000);
     assign rx_byte_next = {rx_shift, spi_mosi_sync};
     assign spi_miso = miso_reg;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             spi_sclk_sync_d <= 1'b0;
-            bit_position    <= 8'b00000001;
+            bit_phase       <= 4'b0000;
             second_byte     <= 1'b0;
             rx_shift        <= 7'd0;
             tx_shift        <= 7'd0;
@@ -105,7 +108,7 @@ module spi_slave (
             end
 
             if (spi_cs_n_sync) begin
-                bit_position <= 8'b00000001;
+                bit_phase    <= 4'b0000;
                 second_byte  <= 1'b0;
                 rx_shift   <= 7'd0;
                 tx_shift   <= 7'd0;
@@ -117,13 +120,11 @@ module spi_slave (
             end else if (!frame_done && sclk_rise) begin
                 rx_shift <= rx_byte_next[6:0];
 
-                if (!second_byte && bit_position[7]) begin
+                if (!second_byte && phase_last) begin
                     /* First byte: R/W in bit7, address in bits6:0. */
                     frame_addr <= rx_byte_next[6:0];
                     read_frame <= rx_byte_next[7];
                     second_byte <= 1'b1;
-                    bit_position <= 8'b00000001;
-
                     if (rx_byte_next[7]) begin
                         read_addr         <= rx_byte_next[6:0];
                         read_load_pending <= 1'b1;
@@ -139,14 +140,14 @@ module spi_slave (
                          * This avoids relying on a delayed synchronized
                          * falling edge at the specified 2 MHz maximum SCLK.
                          */
-                        if (!bit_position[7]) begin
+                        if (!phase_last) begin
                             miso_reg <= tx_shift[6];
                             tx_shift <= {tx_shift[5:0], 1'b0};
                         end else begin
                             miso_reg   <= 1'b0;
                             frame_done <= 1'b1;
                         end
-                    end else if (bit_position[7]) begin
+                    end else if (phase_last) begin
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
                         write_data <= rx_byte_next;
@@ -156,9 +157,7 @@ module spi_slave (
                     end
                 end
 
-                if (!bit_position[7]) begin
-                    bit_position <= {bit_position[6:0], 1'b0};
-                end
+                bit_phase <= {bit_phase[2:0], ~bit_phase[3]};
             end
         end
     end
