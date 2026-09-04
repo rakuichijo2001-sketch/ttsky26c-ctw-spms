@@ -37,6 +37,9 @@ module tt_um_ctw_spms (
     wire [7:0] spi_read_data;
     wire [6:0] spi_write_addr;
     wire [7:0] spi_write_data;
+    wire [1:0] spi_write_data_23_copy_a;
+    wire [1:0] spi_write_data_23_copy_b;
+    wire [1:0] spi_write_data_23_copy_c;
     wire       spi_write_strobe;
 
     wire [7:0] power_sample;
@@ -131,6 +134,9 @@ module tt_um_ctw_spms (
         .spi_mosi_async(uio_in[3]), .spi_miso(spi_miso),
         .read_addr(spi_read_addr), .read_data(spi_read_data),
         .write_addr(spi_write_addr), .write_data(spi_write_data),
+        .write_data_23_copy_a(spi_write_data_23_copy_a),
+        .write_data_23_copy_b(spi_write_data_23_copy_b),
+        .write_data_23_copy_c(spi_write_data_23_copy_c),
         .write_strobe(spi_write_strobe)
     );
 
@@ -138,6 +144,9 @@ module tt_um_ctw_spms (
         .clk(clk), .rst_n(core_rst_n),
         .write_strobe(spi_write_strobe),
         .write_addr(spi_write_addr), .write_data(spi_write_data),
+        .write_data_23_copy_a(spi_write_data_23_copy_a),
+        .write_data_23_copy_b(spi_write_data_23_copy_b),
+        .write_data_23_copy_c(spi_write_data_23_copy_c),
         .read_addr(spi_read_addr), .read_data(spi_read_data),
         .power_sample(power_sample),
         .power_sample_strobe(power_sample_strobe),
