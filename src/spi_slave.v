@@ -25,6 +25,9 @@ module spi_slave (
 
     output reg  [6:0] write_addr,
     output reg  [7:0] write_data,
+    output wire [1:0] write_data_23_copy_a,
+    output wire [1:0] write_data_23_copy_b,
+    output wire [1:0] write_data_23_copy_c,
     output reg        write_strobe
 );
 
@@ -48,6 +51,9 @@ module spi_slave (
     reg        frame_done;
     reg        read_load_pending;
     reg        miso_reg;
+    reg  [1:0] write_data_23_copy_a_reg;
+    reg  [1:0] write_data_23_copy_b_reg;
+    reg  [1:0] write_data_23_copy_c_reg;
 
     wire       sclk_rise;
     wire       phase_last;
@@ -80,6 +86,9 @@ module spi_slave (
     assign phase_last = (bit_phase == 4'b1000);
     assign rx_byte_next = {rx_shift, spi_mosi_sync};
     assign spi_miso = miso_reg;
+    assign write_data_23_copy_a = write_data_23_copy_a_reg;
+    assign write_data_23_copy_b = write_data_23_copy_b_reg;
+    assign write_data_23_copy_c = write_data_23_copy_c_reg;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -96,6 +105,9 @@ module spi_slave (
             read_addr       <= 7'd0;
             write_addr      <= 7'd0;
             write_data      <= 8'd0;
+            write_data_23_copy_a_reg <= 2'd0;
+            write_data_23_copy_b_reg <= 2'd0;
+            write_data_23_copy_c_reg <= 2'd0;
             write_strobe    <= 1'b0;
         end else begin
             spi_sclk_sync_d <= spi_sclk_sync;
@@ -150,7 +162,15 @@ module spi_slave (
                     end else if (phase_last) begin
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
-                        write_data <= rx_byte_next;
+                        write_data[7:4] <= rx_byte_next[7:4];
+                        write_data[1:0] <= rx_byte_next[1:0];
+                        case (frame_addr[3:2])
+                            2'b00: write_data[3:2] <= rx_byte_next[3:2];
+                            2'b01: write_data_23_copy_a_reg <= rx_byte_next[3:2];
+                            2'b10: write_data_23_copy_b_reg <= rx_byte_next[3:2];
+                            2'b11: write_data_23_copy_c_reg <= rx_byte_next[3:2];
+                            default: begin end
+                        endcase
                         write_strobe <= 1'b1;
                         frame_done <= 1'b1;
                         miso_reg   <= 1'b0;
