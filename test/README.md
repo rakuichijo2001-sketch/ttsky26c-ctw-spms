@@ -4,7 +4,8 @@ The Cocotb regression is shared by RTL and gate-level simulation.
 
 Coverage includes:
 
-- reset and active reset, including deterministic outputs and `uio_oe`
+- asynchronous reset assertion, synchronized two-edge release, active reset,
+  deterministic outputs, and `uio_oe`
 - complete SPI register/status access, incomplete aborts, extra clocks,
   unsupported addresses, back-to-back frames, and configuration effects
 - first-sample-filled unity-gain FIR, FIR-valid classifier gating, deviation,
@@ -18,8 +19,8 @@ Coverage includes:
 - frozen simultaneous-fault priority, OC/OT, latch and safe clear semantics
 - RUN-only watchdog heartbeat/timeout and retry
   success/failure/exhaustion/FAULT_LOCK with root-cause retention
-- zero boundaries, diagnostic saturation, illegal rail-state recovery, and
-  safety invariants
+- zero boundaries, diagnostic saturation, non-zero-delay force/release of an
+  illegal rail state, deterministic recovery, and safety invariants
 
 Run RTL simulation with:
 

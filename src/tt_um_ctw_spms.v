@@ -19,6 +19,8 @@ module tt_um_ctw_spms (
 
     localparam [4:0] ST_RUN = 5'd9;
 
+    wire core_rst_n;
+
     wire pg1_sync;
     wire pg2_sync;
     wire pg3_sync;
@@ -35,6 +37,9 @@ module tt_um_ctw_spms (
     wire [7:0] spi_read_data;
     wire [6:0] spi_write_addr;
     wire [7:0] spi_write_data;
+    wire [1:0] spi_write_data_23_copy_a;
+    wire [1:0] spi_write_data_23_copy_b;
+    wire [1:0] spi_write_data_23_copy_c;
     wire       spi_write_strobe;
 
     wire [7:0] power_sample;
@@ -95,43 +100,53 @@ module tt_um_ctw_spms (
     wire [2:0] final_load_en;
     wire [7:0] status;
 
-    sync_2ff u_sync_pg1 (.clk(clk), .rst_n(rst_n),
+    reset_sync u_reset_sync (
+        .clk(clk), .async_rst_n(rst_n), .sync_rst_n(core_rst_n)
+    );
+
+    sync_2ff u_sync_pg1 (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[0]), .sync_out(pg1_sync));
-    sync_2ff u_sync_pg2 (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_pg2 (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[1]), .sync_out(pg2_sync));
-    sync_2ff u_sync_pg3 (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_pg3 (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[2]), .sync_out(pg3_sync));
-    sync_2ff u_sync_pg4 (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_pg4 (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[3]), .sync_out(pg4_sync));
-    sync_2ff u_sync_overcurrent (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_overcurrent (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[4]), .sync_out(overcurrent_sync));
-    sync_2ff u_sync_overtemp (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_overtemp (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[5]), .sync_out(overtemp_sync));
-    sync_2ff u_sync_watchdog (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_watchdog (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[6]), .sync_out(watchdog_sync));
-    sync_2ff u_sync_force_shutdown (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_force_shutdown (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ui_in[7]),
                          .sync_out(force_shutdown_ext_sync));
-    sync_2ff u_sync_ena (.clk(clk), .rst_n(rst_n),
+    sync_2ff u_sync_ena (.clk(clk), .rst_n(core_rst_n),
                          .async_in(ena), .sync_out(ena_sync));
 
     timebase_tick u_timebase_tick (
-        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce)
+        .clk(clk), .rst_n(core_rst_n), .timer_tick_ce(timer_tick_ce)
     );
 
     spi_slave u_spi_slave (
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst_n(core_rst_n),
         .spi_cs_n_async(uio_in[1]), .spi_sclk_async(uio_in[2]),
         .spi_mosi_async(uio_in[3]), .spi_miso(spi_miso),
         .read_addr(spi_read_addr), .read_data(spi_read_data),
         .write_addr(spi_write_addr), .write_data(spi_write_data),
+        .write_data_23_copy_a(spi_write_data_23_copy_a),
+        .write_data_23_copy_b(spi_write_data_23_copy_b),
+        .write_data_23_copy_c(spi_write_data_23_copy_c),
         .write_strobe(spi_write_strobe)
     );
 
     register_bank u_register_bank (
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst_n(core_rst_n),
         .write_strobe(spi_write_strobe),
         .write_addr(spi_write_addr), .write_data(spi_write_data),
+        .write_data_23_copy_a(spi_write_data_23_copy_a),
+        .write_data_23_copy_b(spi_write_data_23_copy_b),
+        .write_data_23_copy_c(spi_write_data_23_copy_c),
         .read_addr(spi_read_addr), .read_data(spi_read_data),
         .power_sample(power_sample),
         .power_sample_strobe(power_sample_strobe),
@@ -161,7 +176,7 @@ module tt_um_ctw_spms (
     );
 
     power_fir u_power_fir (
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst_n(core_rst_n),
         .sample_strobe(power_sample_strobe), .sample_in(power_sample),
         .filtered_sample(filtered_sample),
         .filtered_valid(filtered_valid),
@@ -174,7 +189,7 @@ module tt_um_ctw_spms (
     );
 
     anomaly_detector u_anomaly_detector (
-        .clk(clk), .rst_n(rst_n), .sample_strobe(filtered_strobe),
+        .clk(clk), .rst_n(core_rst_n), .sample_strobe(filtered_strobe),
         .deviation(deviation),
         .warn_threshold(anomaly_warn_threshold),
         .fault_threshold(anomaly_fault_threshold),
@@ -191,19 +206,19 @@ module tt_um_ctw_spms (
         .power_level(power_level)
     );
 
-    pg_filter u_pg1_filter (.clk(clk), .rst_n(rst_n),
+    pg_filter u_pg1_filter (.clk(clk), .rst_n(core_rst_n),
                             .timer_tick_ce(timer_tick_ce), .pg_sync(pg1_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[0]));
-    pg_filter u_pg2_filter (.clk(clk), .rst_n(rst_n),
+    pg_filter u_pg2_filter (.clk(clk), .rst_n(core_rst_n),
                             .timer_tick_ce(timer_tick_ce), .pg_sync(pg2_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[1]));
-    pg_filter u_pg3_filter (.clk(clk), .rst_n(rst_n),
+    pg_filter u_pg3_filter (.clk(clk), .rst_n(core_rst_n),
                             .timer_tick_ce(timer_tick_ce), .pg_sync(pg3_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[2]));
-    pg_filter u_pg4_filter (.clk(clk), .rst_n(rst_n),
+    pg_filter u_pg4_filter (.clk(clk), .rst_n(core_rst_n),
                             .timer_tick_ce(timer_tick_ce), .pg_sync(pg4_sync),
                             .stable_count_cfg(pg_stable_count),
                             .pg_good(pg_good[3]));
@@ -213,7 +228,7 @@ module tt_um_ctw_spms (
     assign sequencer_run = (current_state == ST_RUN);
 
     rail_sequencer u_rail_sequencer (
-        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
+        .clk(clk), .rst_n(core_rst_n), .timer_tick_ce(timer_tick_ce),
         .system_request(system_request),
         .fault_shutdown(hard_fault_override), .pg_good(pg_good),
         .sequence_delay(sequence_delay), .startup_timeout(startup_timeout),
@@ -224,7 +239,7 @@ module tt_um_ctw_spms (
     );
 
     watchdog u_watchdog (
-        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
+        .clk(clk), .rst_n(core_rst_n), .timer_tick_ce(timer_tick_ce),
         .enable(watchdog_enable & sequencer_run & ~fault_latched),
         .heartbeat(watchdog_sync), .timeout_cfg(watchdog_timeout),
         .timeout_fault(watchdog_fault)
@@ -243,7 +258,7 @@ module tt_um_ctw_spms (
     );
 
     fault_controller u_fault_controller (
-        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
+        .clk(clk), .rst_n(core_rst_n), .timer_tick_ce(timer_tick_ce),
         .system_request(system_request), .sequencer_run(sequencer_run),
         .clear_fault(clear_fault_pulse), .fault_valid(fault_event_valid),
         .fault_code(fault_event_code), .fault_detail(fault_event_detail),
@@ -255,10 +270,11 @@ module tt_um_ctw_spms (
     );
 
     assign hard_fault_override = fault_event_valid | fault_latched | fault_lock;
-    assign safe_shutdown = hard_fault_override | force_shutdown_active | ~ena_sync;
+    assign safe_shutdown = hard_fault_override | force_shutdown_active |
+                           ~ena_sync | ~rst_n;
 
     load_priority_manager u_load_priority_manager (
-        .clk(clk), .rst_n(rst_n), .timer_tick_ce(timer_tick_ce),
+        .clk(clk), .rst_n(core_rst_n), .timer_tick_ce(timer_tick_ce),
         .system_run(sequencer_run & system_request),
         .hard_shutdown(safe_shutdown), .power_level(power_level),
         .restore_delay(sequence_delay), .load_en(manager_load_en)

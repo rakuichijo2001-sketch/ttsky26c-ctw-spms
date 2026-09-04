@@ -8,6 +8,9 @@ module register_bank (
     input  wire       write_strobe,
     input  wire [6:0] write_addr,
     input  wire [7:0] write_data,
+    input  wire [1:0] write_data_23_copy_a,
+    input  wire [1:0] write_data_23_copy_b,
+    input  wire [1:0] write_data_23_copy_c,
     input  wire [6:0] read_addr,
     output reg  [7:0] read_data,
 
@@ -46,6 +49,27 @@ module register_bank (
     input  wire [2:0] fault_detail
 );
 
+    /*
+     * Bits 3:2 are the only write-data bits that required post-route antenna
+     * diodes on an eight-load branch. Three address-qualified SPI-register
+     * copies split those sixteen destinations into four groups of four,
+     * leaving electrical headroom without globally over-buffering clock and
+     * control trees.
+     */
+    wire [7:0] write_data_group_a;
+    wire [7:0] write_data_group_b;
+    wire [7:0] write_data_group_c;
+
+    assign write_data_group_a = {
+        write_data[7:4], write_data_23_copy_a, write_data[1:0]
+    };
+    assign write_data_group_b = {
+        write_data[7:4], write_data_23_copy_b, write_data[1:0]
+    };
+    assign write_data_group_c = {
+        write_data[7:4], write_data_23_copy_c, write_data[1:0]
+    };
+
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             power_sample             <= 8'h00;
@@ -80,23 +104,23 @@ module register_bank (
                     7'h01: power_nominal           <= write_data;
                     7'h02: anomaly_warn_threshold  <= write_data;
                     7'h03: anomaly_fault_threshold <= write_data;
-                    7'h04: power_high_threshold    <= write_data;
-                    7'h05: power_med_threshold     <= write_data;
-                    7'h06: power_low_threshold     <= write_data;
-                    7'h07: pg_stable_count         <= write_data;
-                    7'h08: sequence_delay          <= write_data;
-                    7'h09: startup_timeout         <= write_data;
-                    7'h0a: watchdog_timeout        <= write_data;
-                    7'h0b: retry_delay             <= write_data;
-                    7'h0c: max_retry               <= write_data;
+                    7'h04: power_high_threshold    <= write_data_group_a;
+                    7'h05: power_med_threshold     <= write_data_group_a;
+                    7'h06: power_low_threshold     <= write_data_group_a;
+                    7'h07: pg_stable_count         <= write_data_group_a;
+                    7'h08: sequence_delay          <= write_data_group_b;
+                    7'h09: startup_timeout         <= write_data_group_b;
+                    7'h0a: watchdog_timeout        <= write_data_group_b;
+                    7'h0b: retry_delay             <= write_data_group_b;
+                    7'h0c: max_retry               <= write_data_group_c;
                     7'h0d: begin
-                        system_enable     <= write_data[0];
-                        clear_fault_pulse <= write_data[1];
-                        force_shutdown    <= write_data[2];
-                        watchdog_enable   <= write_data[3];
+                        system_enable     <= write_data_group_c[0];
+                        clear_fault_pulse <= write_data_group_c[1];
+                        force_shutdown    <= write_data_group_c[2];
+                        watchdog_enable   <= write_data_group_c[3];
                     end
-                    7'h0e: warn_persist_count      <= write_data;
-                    7'h0f: fault_persist_count     <= write_data;
+                    7'h0e: warn_persist_count      <= write_data_group_c;
+                    7'h0f: fault_persist_count     <= write_data_group_c;
                     default: begin end
                 endcase
             end

@@ -181,7 +181,15 @@ permit operation. Either heartbeat edge/toggle resets its timer, and
 
 ## Reset and illegal-state behavior
 
-Active-low reset deterministically produces:
+External active-low `rst_n` asserts the internal reset asynchronously. A
+two-flip-flop release synchronizer keeps the internal domain in reset until two
+rising edges of the 10 MHz project clock have occurred. Reset deassertion is
+therefore synchronous even if external `rst_n` is released between clock
+edges. The raw reset also participates directly in the final safety override,
+so rails and loads do not wait for a clock edge to turn off.
+
+Hold external `rst_n` LOW for at least two project-clock periods. During reset
+and the two-edge release quarantine, outputs deterministically produce:
 
 ```text
 RAIL_EN = 0000
@@ -195,6 +203,22 @@ encoding recovers to OFF with all sequencer rails disabled. The two-bit fault
 controller uses all four binary encodings; its lock state stays safe until a
 valid clear.
 
+## Asynchronous-input contract
+
+Every external single-bit status input is sampled through a two-flip-flop
+synchronizer. The interface contract at 10 MHz is:
+
+| Inputs | Required external behavior |
+|---|---|
+| `PG1..4`, `OVERCURRENT`, `OVERTEMP`, `FORCE_SHUTDOWN_EXT`, `ena` | Treat as levels and hold each new level for at least two full project-clock periods. PG additionally must satisfy `PG_STABLE_COUNT`. |
+| `WATCHDOG_IN` | Use retained level toggles; separate consecutive toggles by at least two full project-clock periods. |
+| SPI `CS_N`, `SCLK`, `MOSI` | Obey the SPI timing above: SCLK no faster than 2 MHz and CS_N HIGH for at least three project clocks between frames. |
+
+Pulses shorter than two project-clock periods are outside the capture contract
+and must be stretched by the external source if they cannot be represented as
+a retained level or toggle. Multi-bit measurement data crosses only through an
+atomic completed SPI write; it is not synchronized bit-by-bit.
+
 ## Verification
 
 Run the deterministic RTL regression with:
@@ -205,11 +229,13 @@ make clean
 make
 ```
 
-The regression covers all required scenario classes, including all four startup
-timeouts and RUN PG losses, PG glitches, staged loads, anomaly persistence,
+The regression covers all required scenario classes, including asynchronous
+assert/synchronous reset release, all four startup timeouts and RUN PG losses,
+PG glitches, staged loads, anomaly persistence,
 single transient rejection, simultaneous OT-over-OC priority, watchdog, retry
-success/failure/exhaustion, zero boundaries, saturation, active reset, illegal
-rail-state recovery, SPI framing, configuration effects, and output invariants.
+success/failure/exhaustion, zero boundaries, saturation, active reset,
+non-zero-delay force/release and illegal rail-state recovery, SPI framing,
+configuration effects, and output invariants.
 
 CI additionally runs Tiny Tapeout GDS hardening, the project signoff-policy
 gate, precheck, and gate-level tests. The release criteria, audited evidence,

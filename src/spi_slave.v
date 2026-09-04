@@ -25,6 +25,9 @@ module spi_slave (
 
     output reg  [6:0] write_addr,
     output reg  [7:0] write_data,
+    output wire [1:0] write_data_23_copy_a,
+    output wire [1:0] write_data_23_copy_b,
+    output wire [1:0] write_data_23_copy_c,
     output reg        write_strobe
 );
 
@@ -33,7 +36,14 @@ module spi_slave (
     wire spi_mosi_sync;
 
     reg        spi_sclk_sync_d;
-    reg  [4:0] bit_count;
+    /*
+     * Four-bit Johnson phase counter: eight positions with shift/invert
+     * next-state paths.  This avoids both the binary carry path that was
+     * marginal after routing and the area/congestion cost of an eight-bit
+     * one-hot counter.
+     */
+    reg  [3:0] bit_phase;
+    reg        second_byte;
     reg  [6:0] rx_shift;
     reg  [6:0] tx_shift;
     reg  [6:0] frame_addr;
@@ -41,8 +51,12 @@ module spi_slave (
     reg        frame_done;
     reg        read_load_pending;
     reg        miso_reg;
+    reg  [1:0] write_data_23_copy_a_reg;
+    reg  [1:0] write_data_23_copy_b_reg;
+    reg  [1:0] write_data_23_copy_c_reg;
 
     wire       sclk_rise;
+    wire       phase_last;
     wire [7:0] rx_byte_next;
 
     sync_2ff #(
@@ -69,13 +83,18 @@ module spi_slave (
     );
 
     assign sclk_rise = spi_sclk_sync & ~spi_sclk_sync_d;
+    assign phase_last = (bit_phase == 4'b1000);
     assign rx_byte_next = {rx_shift, spi_mosi_sync};
     assign spi_miso = miso_reg;
+    assign write_data_23_copy_a = write_data_23_copy_a_reg;
+    assign write_data_23_copy_b = write_data_23_copy_b_reg;
+    assign write_data_23_copy_c = write_data_23_copy_c_reg;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             spi_sclk_sync_d <= 1'b0;
-            bit_count       <= 5'd0;
+            bit_phase       <= 4'b0000;
+            second_byte     <= 1'b0;
             rx_shift        <= 7'd0;
             tx_shift        <= 7'd0;
             frame_addr      <= 7'd0;
@@ -86,6 +105,9 @@ module spi_slave (
             read_addr       <= 7'd0;
             write_addr      <= 7'd0;
             write_data      <= 8'd0;
+            write_data_23_copy_a_reg <= 2'd0;
+            write_data_23_copy_b_reg <= 2'd0;
+            write_data_23_copy_c_reg <= 2'd0;
             write_strobe    <= 1'b0;
         end else begin
             spi_sclk_sync_d <= spi_sclk_sync;
@@ -98,7 +120,8 @@ module spi_slave (
             end
 
             if (spi_cs_n_sync) begin
-                bit_count  <= 5'd0;
+                bit_phase    <= 4'b0000;
+                second_byte  <= 1'b0;
                 rx_shift   <= 7'd0;
                 tx_shift   <= 7'd0;
                 frame_addr <= 7'd0;
@@ -109,11 +132,11 @@ module spi_slave (
             end else if (!frame_done && sclk_rise) begin
                 rx_shift <= rx_byte_next[6:0];
 
-                if (bit_count == 5'd7) begin
+                if (!second_byte && phase_last) begin
                     /* First byte: R/W in bit7, address in bits6:0. */
                     frame_addr <= rx_byte_next[6:0];
                     read_frame <= rx_byte_next[7];
-
+                    second_byte <= 1'b1;
                     if (rx_byte_next[7]) begin
                         read_addr         <= rx_byte_next[6:0];
                         read_load_pending <= 1'b1;
@@ -121,7 +144,7 @@ module spi_slave (
                         tx_shift <= 7'd0;
                         miso_reg <= 1'b0;
                     end
-                end else if (bit_count >= 5'd8) begin
+                end else if (second_byte) begin
                     if (read_frame) begin
                         /*
                          * The master sampled the current MISO bit on this
@@ -129,26 +152,32 @@ module spi_slave (
                          * This avoids relying on a delayed synchronized
                          * falling edge at the specified 2 MHz maximum SCLK.
                          */
-                        if (bit_count < 5'd15) begin
+                        if (!phase_last) begin
                             miso_reg <= tx_shift[6];
                             tx_shift <= {tx_shift[5:0], 1'b0};
                         end else begin
                             miso_reg   <= 1'b0;
                             frame_done <= 1'b1;
                         end
-                    end else if (bit_count == 5'd15) begin
+                    end else if (phase_last) begin
                         /* Commit a write only after all sixteen clocks. */
                         write_addr <= frame_addr;
-                        write_data <= rx_byte_next;
+                        write_data[7:4] <= rx_byte_next[7:4];
+                        write_data[1:0] <= rx_byte_next[1:0];
+                        case (frame_addr[3:2])
+                            2'b00: write_data[3:2] <= rx_byte_next[3:2];
+                            2'b01: write_data_23_copy_a_reg <= rx_byte_next[3:2];
+                            2'b10: write_data_23_copy_b_reg <= rx_byte_next[3:2];
+                            2'b11: write_data_23_copy_c_reg <= rx_byte_next[3:2];
+                            default: begin end
+                        endcase
                         write_strobe <= 1'b1;
                         frame_done <= 1'b1;
                         miso_reg   <= 1'b0;
                     end
                 end
 
-                if (bit_count < 5'd15) begin
-                    bit_count <= bit_count + 5'd1;
-                end
+                bit_phase <= {bit_phase[2:0], ~bit_phase[3]};
             end
         end
     end

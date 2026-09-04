@@ -4,6 +4,7 @@ import os
 
 import cocotb
 from cocotb.clock import Clock
+from cocotb.handle import Force, Release
 from cocotb.triggers import ClockCycles, RisingEdge, Timer
 
 
@@ -237,6 +238,43 @@ async def test_reset_defaults_version_and_no_undefined_outputs(dut):
 
 
 @cocotb.test()
+async def test_asynchronous_assert_synchronous_reset_release(dut):
+    """Reset asserts immediately and releases internally on clock edges."""
+    await start_clock(dut)
+    dut.ena.value = 1
+    dut.ui_in.value = 0xFF
+    dut.uio_in.value = uio_value(cs_n=1)
+    dut.rst_n.value = 0
+    await Timer(237, unit="ns")
+    assert int(dut.uo_out.value) == 0
+    assert int(dut.uio_out.value) == 0
+    assert int(dut.uio_oe.value) == SPI_MISO_OE
+
+    # Release away from a clock edge.  The reset synchronizer must keep the
+    # internal domain in reset until its two release stages have clocked.
+    dut.ui_in.value = 0
+    dut.rst_n.value = 1
+    if os.getenv("GATES", "no") != "yes":
+        assert int(dut.user_project.core_rst_n.value) == 0
+    await RisingEdge(dut.clk)
+    await settle()
+    if os.getenv("GATES", "no") != "yes":
+        assert int(dut.user_project.core_rst_n.value) == 0
+    assert int(dut.uo_out.value) == 0
+    await RisingEdge(dut.clk)
+    await settle()
+    if os.getenv("GATES", "no") != "yes":
+        assert int(dut.user_project.core_rst_n.value) == 1
+
+    # Configuration remains at reset defaults and outputs stay safe after
+    # the release quarantine; asynchronous input levels are still settling.
+    await ClockCycles(dut.clk, 3)
+    await settle()
+    assert int(dut.uo_out.value) == 0
+    assert int(dut.uio_oe.value) == SPI_MISO_OE
+
+
+@cocotb.test()
 async def test_spi_protocol_atomic_write_abort_and_sample_strobe(dut):
     """SPI framing, atomic writes, abort, address isolation, and FIR hold."""
     await start_clock(dut)
@@ -258,6 +296,23 @@ async def test_spi_protocol_atomic_write_abort_and_sample_strobe(dut):
     await spi_frame(dut, REG_POWER_SAMPLE, 0x5A, extra_bytes=[0x69, 0xFF])
     assert await read_reg(dut, REG_POWER_SAMPLE) == 0x5A
     assert await read_reg(dut, REG_FILTERED_SAMPLE) == 0x92
+
+
+@cocotb.test()
+async def test_spi_write_data_partition_round_trip(dut):
+    """Each physical write-data partition preserves bits 3:2 exactly."""
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    writes = (
+        (REG_WARN_THRESHOLD, 0xA4),
+        (REG_LOW_THRESHOLD, 0x58),
+        (REG_WATCHDOG_TIMEOUT, 0x3C),
+        (REG_WARN_PERSIST, 0xC0),
+    )
+    for address, value in writes:
+        await write_reg(dut, address, value)
+        assert await read_reg(dut, address) == value
 
 
 @cocotb.test()
@@ -634,7 +689,11 @@ async def test_fault_count_saturation_and_illegal_state_safety(dut):
         assert int(dut.user_project.fault_count.value) == 0xFF
 
         await reset_dut(dut)
-        dut.user_project.u_rail_sequencer.current_state.value = 0x1F
+        state_handle = dut.user_project.u_rail_sequencer.current_state
+        state_handle.value = Force(0x1F)
+        await Timer(37, unit="ns")
+        assert int(state_handle.value) == 0x1F
+        state_handle.value = Release()
         await ClockCycles(dut.clk, 2)
         assert int(dut.user_project.current_state.value) == ST_OFF
         assert (int(dut.uo_out.value) & (RAIL_MASK | LOAD_MASK)) == 0
