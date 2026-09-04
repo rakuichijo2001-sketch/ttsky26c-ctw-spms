@@ -34,9 +34,6 @@
   "DESIGN_REPAIR_MAX_SLEW_PCT": 50,
   "DESIGN_REPAIR_MAX_CAP_PCT": 30,
 
-  "//": "Over-repair fanout during PnR so post-route antenna cells remain within the signoff limit of 8.",
-  "PNR_SDC_FILE": "dir::pnr.sdc",
-
   "//": "CLOCK_PERIOD - Increase this in case you are getting setup time violations.",
   "//": "The value is in nanoseconds, so 20ns == 50MHz.",
   "CLOCK_PERIOD": 100,
